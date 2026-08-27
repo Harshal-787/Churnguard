@@ -1,0 +1,16 @@
+pandas
+numpy
+scikit-learn
+xgboost
+shap==0.52.0
+joblib==1.5.3
+plotly==6.9.0
+pytest==9.1.1
+httpx==0.28.1
+fairlearn==0.14.0
+
+# MLOps
+mlflow>=2.10.2
+evidently>=0.4.15
+optuna>=3.6.0
+lightgbm>=4.3.0

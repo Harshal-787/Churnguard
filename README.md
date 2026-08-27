@@ -75,12 +75,12 @@ Full metrics and methodology: [`docs/model_card.md`](docs/model_card.md)
 git clone <your-repo-url> && cd churnguard
 pip install -r requirements.txt
 
-python src/data_pipeline/generate_data.py   # synthetic dataset
-python src/data_pipeline/validate.py        # data quality report
-python src/models/train.py                  # train + select best model
+python ml/data_pipeline/generate_data.py   # synthetic dataset
+python ml/data_pipeline/validate.py        # data quality report
+python ml/models/train.py                  # train + select best model
 pytest tests/ -v                            # run test suite
 
-uvicorn src.api.main:app --reload --port 8000   # API on :8000
+uvicorn app.main:app --reload --port 8000   # API on :8000 (run from backend/)
 streamlit run dashboard/app.py                  # dashboard on :8501
 ```
 

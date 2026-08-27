@@ -20,7 +20,7 @@ from sklearn.metrics import recall_score
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
 
-from src.models.inference import ChurnPredictor
+from ml.models.inference import ChurnPredictor
 
 DATA_PATH = ROOT / "data" / "raw" / "churnguard_customers.csv"
 MAX_RECALL_GAP = 0.20  # flag if recall differs by more than this across subgroups

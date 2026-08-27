@@ -1,10 +1,15 @@
 version: "3.9"
 
+volumes:
+  postgres_data:
+  churnguard_postgres_data:
+  churnguard_mlflow_data:
+
 services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: backend/Dockerfile
     container_name: churnguard-api
     ports:
       - "8000:8000"
@@ -15,14 +20,60 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
 
-  dashboard:
+  db:
+    image: postgres:15
+    container_name: churnguard-db
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-churnguard}
+    volumes:
+      - churnguard_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - churnguard_default
+
+  mlflow:
+    image: python:3.12-slim
+    container_name: churnguard-mlflow
+    ports:
+      - "5000:5000"
+    command: bash -c "pip install mlflow psycopg2-binary && mlflow server --backend-store-uri postgresql://postgres:postgres@db:5432/churnguard --default-artifact-root mlflow-artifacts:/ --artifacts-destination /mlflow/artifacts --serve-artifacts --host 0.0.0.0 --port 5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql://postgres:postgres@db:5432/churnguard
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    volumes:
+      - churnguard_mlflow_data:/mlflow/artifacts
+    depends_on:
+      - db
+    networks:
+      - churnguard_default
+
+  frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.dashboard
-    container_name: churnguard-dashboard
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: churnguard-frontend
     ports:
       - "8501:8501"
     depends_on:
       - api
-    restart: unless-stopped
+
+
+
+networks:
+  churnguard_default:
+

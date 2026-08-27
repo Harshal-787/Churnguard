@@ -16,9 +16,10 @@ from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
+sys.path.append(str(ROOT / "backend"))
 
-from src.data_pipeline.validate import DataValidationError, validate
-from src.features.build_features import build_model_matrix, engineer_features
+from ml.data_pipeline.validate import DataValidationError, validate
+from ml.features.build_features import build_model_matrix, engineer_features
 
 DATA_PATH = ROOT / "data" / "raw" / "churnguard_customers.csv"
 
@@ -80,9 +81,9 @@ def test_model_meets_minimum_performance():
     """CI gate: block deployment if model quality regresses."""
     import json
 
-    metadata_path = ROOT / "models" / "metadata.json"
+    metadata_path = ROOT / "saved_models" / "metadata.json"
     if not metadata_path.exists():
-        pytest.skip("Model not trained yet — run `python src/models/train.py` first")
+        pytest.skip("Model not trained yet — run `python ml/models/train.py` first")
 
     with open(metadata_path) as f:
         meta = json.load(f)
@@ -98,7 +99,7 @@ def test_model_meets_minimum_performance():
 
 @pytest.fixture(scope="module")
 def api_client():
-    from src.api.main import app
+    from backend.app.main import app
 
     return TestClient(app)
 

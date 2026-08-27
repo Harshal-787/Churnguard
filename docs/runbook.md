@@ -7,19 +7,20 @@
 pip install -r requirements.txt
 
 # 2. Generate synthetic data
-python src/data_pipeline/generate_data.py
+python ml/data_pipeline/generate_data.py
 
 # 3. Validate data quality
-python src/data_pipeline/validate.py
+python ml/data_pipeline/validate.py
 
 # 4. Train the model (writes models/ and docs/model_card.md)
-python src/models/train.py
+python ml/models/train.py
 
 # 5. Run tests
 pytest tests/ -v
 
 # 6. Start the API
-uvicorn src.api.main:app --reload --port 8000
+cd backend
+uvicorn app.main:app --reload --port 8000
 # Swagger docs: http://localhost:8000/docs
 
 # 7. Start the dashboard (separate terminal)
