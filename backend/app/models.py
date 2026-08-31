@@ -31,6 +31,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     role = Column(Enum(RoleEnum), default=RoleEnum.VIEWER, nullable=False)
     organization_id = Column(Integer, ForeignKey("organizations.id"))
+    profile_picture_url = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="users")
@@ -84,7 +85,7 @@ class PredictionHistory(Base):
     __tablename__ = "prediction_history"
     
     id = Column(Integer, primary_key=True, index=True)
-    customer_db_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    customer_db_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
     model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
     
     probability = Column(Float, nullable=False)

@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
-import { ArrowRight, LockKeyhole, TrendingDown } from 'lucide-react'
+import { ArrowRight, ArrowLeft, LockKeyhole, TrendingDown } from 'lucide-react'
 import { api, saveSession } from '@/lib/api'
 import { Button } from '@/components/shared/ui'
 import { useRouter } from 'next/navigation'
@@ -68,6 +68,10 @@ export default function LoginPage() {
       </div>
       <div className="flex items-center justify-center bg-background p-6 md:p-12">
         <div className="w-full max-w-md">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-8 group">
+            <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" />
+            Back to home
+          </Link>
           <div className="mb-10 flex items-center gap-2 lg:hidden">
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary drop-shadow-sm shrink-0">
               <path d="M16 2L3 9.5V22.5L16 30L29 22.5V9.5L16 2Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>

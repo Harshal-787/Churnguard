@@ -178,14 +178,18 @@ export default function PerformancePage() {
 
           {/* FEATURE IMPORTANCE */}
           <Card className="p-6">
-            <h2 className="font-semibold mb-6">Feature Importance</h2>
+            <h2 className="font-semibold mb-6">Top 10 Feature Importance</h2>
             <div className="h-72 w-full">
               {data.featureImportance?.length ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.featureImportance} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
+                  <BarChart 
+                    data={[...data.featureImportance].sort((a, b) => b.importance - a.importance).slice(0, 10)} 
+                    layout="vertical" 
+                    margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
                     <XAxis type="number" axisLine={false} tickLine={false} className="text-xs font-mono" />
-                    <YAxis dataKey="feature" type="category" width={180} axisLine={false} tickLine={false} className="text-xs font-mono" />
+                    <YAxis dataKey="feature" type="category" width={220} interval={0} axisLine={false} tickLine={false} className="text-xs font-mono" />
                     <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)' }} />
                     <Bar dataKey="importance" fill="var(--primary)" radius={[0, 4, 4, 0]} />
                   </BarChart>

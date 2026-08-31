@@ -9,16 +9,30 @@ import Link from 'next/link'
 
 type RecordData = Record<string, any>
 
+import { BarChart, Bar, ResponsiveContainer, Tooltip, Cell, XAxis } from 'recharts'
+
 function MiniBars({ values }: { values: number[] }) { 
-  const max = Math.max(...values, 1)
+  const data = values.map((v, i) => ({ name: `Month ${i + 1}`, churn: v }))
   return (
-    <div className="flex h-32 items-end gap-2">
-      {values.map((v, i) => (
-        <div key={i} className="flex flex-1 flex-col items-center gap-2">
-          <div className="w-full rounded-t-md bg-primary/80" style={{ height: `${Math.max(4, v / max * 100)}%` }} />
-          <span className="text-[10px] text-muted-foreground">{i + 1}</span>
-        </div>
-      ))}
+    <div className="h-40 w-full mt-auto pt-4">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorChurn" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.9}/>
+              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.2}/>
+            </linearGradient>
+          </defs>
+          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} dy={5} />
+          <Tooltip 
+            cursor={{ fill: 'rgba(0,0,0,0.05)' }} 
+            contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)' }} 
+            itemStyle={{ color: 'var(--primary)', fontWeight: 600 }} 
+            labelStyle={{ color: 'var(--muted-foreground)', fontSize: '12px' }}
+          />
+          <Bar dataKey="churn" fill="url(#colorChurn)" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   )
 }
@@ -27,6 +41,9 @@ export default function DashboardPage() {
   const [data, setData] = useState<RecordData | null>(null)
   const [team, setTeam] = useState<any[]>([])
   const [error, setError] = useState('')
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isReanalyzing, setIsReanalyzing] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
   const user = currentUser()
 
   // Role booleans
@@ -36,6 +53,7 @@ export default function DashboardPage() {
   const isAnalyst = role === 'Data Analyst' || isOrgAdmin
 
   const load = async () => { 
+    setIsRefreshing(true)
     // Uses FastAPI stats endpoint
     const r = await api<RecordData>('/dashboard/stats')
     setData(r.data || null)
@@ -43,6 +61,17 @@ export default function DashboardPage() {
 
     const tr = await api<any[]>('/organizations/me/users')
     if (tr.data) setTeam(tr.data)
+    setIsRefreshing(false)
+  }
+
+  const reanalyze = async () => {
+    setIsReanalyzing(true)
+    await api('/predict/batch/reanalyze', { method: 'POST' })
+    await load() // refresh dashboard after reanalyzing
+    setIsReanalyzing(false)
+    setSuccessMsg('Reanalysis complete!')
+    window.dispatchEvent(new Event('cg_stats_updated'))
+    setTimeout(() => setSuccessMsg(''), 3000)
   }
   
   useEffect(() => { load() }, [])
@@ -63,11 +92,24 @@ export default function DashboardPage() {
         <ShieldAlert className="size-5 text-destructive" />
       </div>
       {listFrom<RecordData>(data?.priority_customers).length ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 flex-1 overflow-hidden">
           {listFrom<RecordData>(data?.priority_customers).slice(0,5).map((c,i)=> (
-            <Link key={i} href={`/customers/${c.id}`} className="flex items-center justify-between rounded-xl border border-border p-3 text-left hover:bg-muted">
-              <span className="truncate text-sm font-medium">{c.name || c.email || `Customer ${c.id}`}</span>
-              <ArrowRight className="size-4 text-muted-foreground" />
+            <Link key={i} href={`/customers/${c.id}`} className="flex items-center justify-between rounded-xl border border-border p-3 text-left hover:border-primary/50 hover:bg-primary/5 transition-all group">
+              <div className="flex flex-col gap-1 overflow-hidden">
+                <span className="truncate text-sm font-semibold">{c.name || c.email || `Customer ${c.id}`}</span>
+                <span className="text-[11px] font-mono text-muted-foreground">Bal: ${displayValue(c.balance || c.avg_balance)}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-end">
+                  <span className="text-xs font-semibold text-destructive">
+                    {c.score || c.risk_score || c.churn_probability ? ((c.score || c.risk_score || c.churn_probability) * 100).toFixed(1) + '%' : '—'}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk</span>
+                </div>
+                <div className="grid size-7 place-items-center rounded-full bg-muted group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                  <ArrowRight className="size-3.5" />
+                </div>
+              </div>
             </Link>
           ))}
         </div>
@@ -142,7 +184,28 @@ export default function DashboardPage() {
         eyebrow="Workspace overview" 
         title={`Welcome, ${firstName}!`} 
         description="A live view of customer health, risk movement, and the actions that need attention." 
-        action={<Button variant="outline" onClick={load}><RefreshCw className="size-4" />Refresh</Button>} 
+        action={
+          <div className="flex items-center gap-4">
+            {successMsg && (
+              <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-500 animate-in fade-in zoom-in slide-in-from-right-4">
+                <CheckCircle2 className="size-4" />
+                {successMsg}
+              </span>
+            )}
+            <div className="flex gap-2">
+              {isAnalyst && (
+                <Button variant="outline" onClick={reanalyze} disabled={isReanalyzing || isRefreshing}>
+                  <Database className={`mr-2 size-4 ${isReanalyzing ? 'animate-pulse text-primary' : ''}`} />
+                  {isReanalyzing ? 'Reanalyzing...' : 'Reanalyze'}
+                </Button>
+              )}
+              <Button variant="outline" onClick={load} disabled={isRefreshing || isReanalyzing}>
+                <RefreshCw className={`mr-2 size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
+        } 
       />
       
       {/* 

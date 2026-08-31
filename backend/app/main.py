@@ -17,12 +17,13 @@ sys.path.insert(0, str(ROOT))
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 
-from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications
+from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications, models
 from app.database import engine, Base
 
 # We rely on Alembic for migrations now, but we can ensure tables exist
@@ -47,6 +48,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+os.makedirs("uploads", exist_ok=True)
+app.mount("/static", StaticFiles(directory="uploads"), name="static")
+
 # API Version 1 Routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(predict.router, prefix="/api/v1/predict", tags=["predict"])
@@ -56,6 +60,7 @@ app.include_router(performance.router, prefix="/api/v1/performance", tags=["perf
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
 app.include_router(organizations.router, prefix="/api/v1/organizations", tags=["organizations"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
+app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
 
 @app.get("/health")
 @limiter.limit("10/minute")

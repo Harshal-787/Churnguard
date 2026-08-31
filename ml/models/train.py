@@ -23,7 +23,9 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import VotingClassifier, RandomForestClassifier
 from xgboost import XGBClassifier
+from lightgbm import LGBMClassifier
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -94,8 +96,8 @@ def main():
     DOCS_DIR.mkdir(exist_ok=True)
 
     # MLflow tracking setup
-    mlflow.set_tracking_uri("http://localhost:5000")
-    mlflow.set_experiment("ChurnGuard_MLOps")
+    # mlflow.set_tracking_uri("http://localhost:5000")
+    # mlflow.set_experiment("ChurnGuard_MLOps")
 
     # Load data
     df = pd.read_csv(DATA_PATH)
@@ -123,11 +125,31 @@ def main():
     print(f"Best CV AUC: {study.best_value:.4f}")
 
     # 2. Train Calibrated Model with Best Params
-    with mlflow.start_run(run_name="fintech_calibrated_xgboost"):
+    # with mlflow.start_run(run_name="fintech_calibrated_ensemble"):
+    if True:
         base_xgb = XGBClassifier(**best_params)
+        base_lgbm = LGBMClassifier(
+            n_estimators=best_params.get("n_estimators", 200),
+            learning_rate=best_params.get("learning_rate", 0.05),
+            max_depth=best_params.get("max_depth", 5),
+            class_weight="balanced",
+            random_state=RANDOM_SEED,
+            verbose=-1
+        )
+        base_rf = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=best_params.get("max_depth", 5) + 2,
+            class_weight="balanced",
+            random_state=RANDOM_SEED
+        )
         
-        # CalibratedClassifierCV wrapping XGBoost
-        calibrated_clf = CalibratedClassifierCV(base_xgb, method="sigmoid", cv=5)
+        ensemble = VotingClassifier(
+            estimators=[('xgb', base_xgb), ('lgbm', base_lgbm), ('rf', base_rf)],
+            voting='soft'
+        )
+        
+        # CalibratedClassifierCV wrapping Ensemble
+        calibrated_clf = CalibratedClassifierCV(ensemble, method="sigmoid", cv=3)
         
         full_pipeline = preprocessor
         full_pipeline.steps.append(("classifier", calibrated_clf))
@@ -142,15 +164,15 @@ def main():
         print(f"Test AUC: {metrics['auc_roc']:.4f}")
         
         # 4. Log to MLflow
-        mlflow.log_params(best_params)
-        mlflow.log_metrics(metrics)
+        # mlflow.log_params(best_params)
+        # mlflow.log_metrics(metrics)
         
         # Log the full scikit-learn pipeline
-        mlflow.sklearn.log_model(
-            full_pipeline, 
-            "model", 
-            serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE
-        )
+        # mlflow.sklearn.log_model(
+        #     full_pipeline, 
+        #     "model", 
+        #     serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE
+        # )
         
         # 5. SHAP Explainability (Global)
         print("Generating SHAP Explanations...")
@@ -171,7 +193,7 @@ def main():
         joblib.dump(full_pipeline, MODEL_DIR / "churn_pipeline.joblib")
         
         metadata = {
-            "best_model": "calibrated_xgboost",
+            "best_model": "calibrated_voting_ensemble",
             "features": feature_names,
             "results": metrics,
             "train_rows": len(X_train),
@@ -179,10 +201,10 @@ def main():
             "random_seed": RANDOM_SEED,
             "best_params": best_params
         }
-        with open(MODEL_DIR / "metadata.json", "w") as f:
+        with open(MODEL_DIR / "metadata_churn_pipeline.joblib.json", "w") as f:
             json.dump(metadata, f, indent=2)
             
-        shap_importance.head(15).to_json(MODEL_DIR / "feature_importance.json")
+        shap_importance.head(15).to_json(MODEL_DIR / "feature_importance_churn_pipeline.joblib.json")
         
         print("\nPipeline successfully trained, calibrated, and logged to MLflow!")
 

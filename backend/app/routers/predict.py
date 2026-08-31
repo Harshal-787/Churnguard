@@ -43,12 +43,20 @@ def _risk_tier(p: float) -> str:
 
 router = APIRouter()
 
-_predictor: ChurnPredictor | None = None
+upload_progress: dict[int, dict[str, int]] = {}
+
+@router.get("/batch/csv/progress")
+def get_upload_progress(current_user: User = Depends(get_current_user)):
+    return upload_progress.get(current_user.organization_id, {"current": 0, "total": 0})
+
+
+_predictors: dict[str, ChurnPredictor] = {}
 def get_predictor() -> ChurnPredictor:
-    global _predictor
-    if _predictor is None:
-        _predictor = ChurnPredictor()
-    return _predictor
+    from .models import get_active_model_filename
+    model_filename = get_active_model_filename()
+    if model_filename not in _predictors:
+        _predictors[model_filename] = ChurnPredictor(model_filename)
+    return _predictors[model_filename]
 
 def log_audit(db: Session, user: User, action: str, endpoint: str, request: Request):
     log = AuditLog(
@@ -134,78 +142,258 @@ def predict_batch(
     return responses
 
 @router.post("/batch/csv")
-async def predict_batch_csv(
+def predict_batch_csv(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    log_audit(db, current_user, "Batch Prediction CSV", "/api/v1/predict/batch/csv", request)
-    
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-    
-    contents = await file.read()
-    df = pd.read_csv(io.BytesIO(contents))
-    
-    # Run predictions
-    predictor = get_predictor()
-    result_df = predictor.predict(df)
-    
-    # Save to DB
-    org_id = current_user.organization_id
-    
-    # Pre-fetch existing customer IDs to avoid duplicates/errors
-    existing_cust_ids = {c.customer_id for c in db.query(Customer.customer_id).filter_by(organization_id=org_id).all()}
-    
-    customers_to_add = []
-    histories_to_add = []
-    
-    for i, row in result_df.iterrows():
-        cust_id = str(row.get("customer_id", f"CUST-{org_id}-{i}"))
+    try:
+        log_audit(db, current_user, "Batch Prediction CSV", "/api/v1/predict/batch/csv", request)
         
-        # We skip saving if the customer_id already exists for simplicity in this batch upload
-        if cust_id in existing_cust_ids:
-            continue
+        if not file.filename.endswith(".csv"):
+            raise HTTPException(status_code=400, detail="File must be a CSV")
+        
+        contents = file.file.read()
+        df = pd.read_csv(io.BytesIO(contents))
+        
+        # Run predictions
+        predictor = get_predictor()
+        result_df = predictor.predict(df)
+        
+        org_id = current_user.organization_id
+        
+        # Pre-fetch existing customer IDs
+        existing_cust_ids = {c.customer_id for c in db.query(Customer.customer_id).filter_by(organization_id=org_id).all()}
+        
+        # Optimize iteration: iterrows is extremely slow for 165k rows, use to_dict
+        records = result_df.to_dict(orient="records")
+        customers_to_add = []
+        
+        for i, row in enumerate(records):
+            cust_id = str(row.get("CustomerId", row.get("customer_id", f"CUST-{org_id}-{i}")))
+            if cust_id in existing_cust_ids:
+                continue
+                
+            customers_to_add.append({
+                "customer_id": cust_id,
+                "organization_id": org_id,
+                "geography": row.get("Geography", "Unknown"),
+                "age": int(row.get("Age", row.get("age", 30))),
+                "tenure_months": int(row.get("Tenure", row.get("tenure_months", 0))),
+                "num_products": int(row.get("NumOfProducts", row.get("num_products", 1))),
+                "has_credit_card": int(row.get("HasCrCard", row.get("has_credit_card", 0))),
+                "is_active_member": int(row.get("IsActiveMember", row.get("is_active_member", 0))),
+                "avg_balance": float(row.get("Balance", row.get("avg_balance", 0.0))),
+                "monthly_transactions": int(row.get("monthly_transactions", 10)),
+                "support_tickets_last_90d": int(row.get("support_tickets_last_90d", 0)),
+                "balance_trend_pct": float(row.get("balance_trend_pct", 0.0)),
+                "days_since_last_login": int(row.get("days_since_last_login", 0)),
+                "salary_band": (
+                    "low" if float(row.get("EstimatedSalary", row.get("salary", 50000))) < 50000 
+                    else "mid" if float(row.get("EstimatedSalary", row.get("salary", 50000))) < 100000
+                    else "high" if float(row.get("EstimatedSalary", row.get("salary", 50000))) < 150000
+                    else "ultra-high"
+                ),
+                "channel": row.get("channel", "web"),
+                # Store prob/pred directly for History pass
+                "_prob": float(row.get("churn_probability", 0)),
+                "_pred": int(row.get("churn_prediction", 0))
+            })
             
-        # Parse fields with fallbacks if CSV is missing them
-        db_cust = Customer(
-            customer_id=cust_id,
-            organization_id=org_id,
-            geography=row.get("Geography", "Unknown"),
-            age=int(row.get("Age", row.get("age", 30))),
-            tenure_months=int(row.get("Tenure", row.get("tenure_months", 0))),
-            num_products=int(row.get("NumOfProducts", row.get("num_products", 1))),
-            has_credit_card=int(row.get("HasCrCard", row.get("has_credit_card", 0))),
-            is_active_member=int(row.get("IsActiveMember", row.get("is_active_member", 0))),
-            avg_balance=float(row.get("Balance", row.get("avg_balance", 0.0))),
-            monthly_transactions=int(row.get("monthly_transactions", 10)),
-            support_tickets_last_90d=int(row.get("support_tickets_last_90d", 0)),
-            balance_trend_pct=float(row.get("balance_trend_pct", 0.0)),
-            days_since_last_login=int(row.get("days_since_last_login", 0)),
-            salary_band=row.get("salary_band", "mid"),
-            channel=row.get("channel", "web")
-        )
-        db.add(db_cust)
-        db.flush() # Need ID for history
+        if not customers_to_add:
+            return {"status": "success", "message": "No new customers to insert."}
+            
+        total_work = len(customers_to_add) * 2
+        upload_progress[org_id] = {"current": 0, "total": total_work}
+            
+        # 1. Bulk Insert Customers and return IDs
+        # We need to map DB IDs to generate History, so we use core insert with returning
+        from sqlalchemy import insert
         
-        prob = float(row["churn_probability"])
-        pred = int(row["churn_prediction"])
-        tier = _risk_tier(prob)
+        inserted_ids = []
+        chunk_size = 2000
         
-        history = PredictionHistory(
-            customer_db_id=db_cust.id,
-            model_id=1,
-            probability=prob,
-            prediction=pred,
-            risk_tier=tier
-        )
-        db.add(history)
+        for i in range(0, len(customers_to_add), chunk_size):
+            chunk = customers_to_add[i:i+chunk_size]
+            stmt = insert(Customer).values([{k: v for k, v in c.items() if not k.startswith("_")} for c in chunk]).returning(Customer.id)
+            result = db.execute(stmt)
+            inserted_ids.extend([row[0] for row in result])
+            upload_progress[org_id]["current"] = i + len(chunk)
         
-    db.commit()
-    
-    result_df["risk_tier"] = result_df["churn_probability"].apply(_risk_tier)
-    return result_df.to_dict(orient="records")
+        # 2. Bulk Insert Prediction History
+        histories_to_add = []
+        for db_id, cust in zip(inserted_ids, customers_to_add):
+            prob = cust["_prob"]
+            histories_to_add.append({
+                "customer_db_id": db_id,
+                "model_id": 1,
+                "probability": prob,
+                "prediction": cust["_pred"],
+                "risk_tier": _risk_tier(prob)
+            })
+            
+        for i in range(0, len(histories_to_add), chunk_size):
+            chunk = histories_to_add[i:i+chunk_size]
+            history_stmt = insert(PredictionHistory).values(chunk)
+            db.execute(history_stmt)
+            upload_progress[org_id]["current"] = len(customers_to_add) + i + len(chunk)
+            
+        db.commit()
+        upload_progress.pop(org_id, None)
+        
+        if len(result_df) > 5000:
+            return {"status": "success", "message": f"Successfully processed and uploaded {len(customers_to_add)} customers."}
+        
+        result_df["risk_tier"] = result_df["churn_probability"].apply(_risk_tier)
+        return result_df.to_dict(orient="records")
+    except Exception as e:
+        org_id = getattr(current_user, "organization_id", None)
+        if org_id:
+            upload_progress.pop(org_id, None)
+        import traceback
+        err_msg = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=str(err_msg))
+
+@router.get("/batch/test_reanalyze")
+def test_reanalyze(db: Session = Depends(get_db)):
+    try:
+        first_cust = db.query(Customer).first()
+        if not first_cust:
+            return {"status": "success", "message": "No customers in db."}
+        org_id = first_cust.organization_id
+        customers = db.query(Customer).filter_by(organization_id=org_id).limit(5).all()
+        if not customers:
+            return {"status": "success", "message": "No customers."}
+            
+        records = []
+        for c in customers:
+            d = c.__dict__.copy()
+            sal = 100000.0
+            band = d.get("salary_band")
+            if band == "low": sal = 40000.0
+            elif band == "mid": sal = 75000.0
+            elif band == "high": sal = 125000.0
+            elif band == "ultra-high": sal = 200000.0
+                
+            mapped = {
+                "id": d["id"],
+                "Geography": d.get("geography", "Unknown"),
+                "Age": d.get("age", 30),
+                "Tenure": d.get("tenure_months", 0),
+                "Balance": d.get("avg_balance", 0.0),
+                "NumOfProducts": d.get("num_products", 1),
+                "HasCrCard": d.get("has_credit_card", 0),
+                "IsActiveMember": d.get("is_active_member", 0),
+                "EstimatedSalary": sal,
+                "Gender": "Unknown",
+                "CreditScore": 650,
+            }
+            records.append(mapped)
+            
+        df = pd.DataFrame.from_records(records)
+        
+        from ml.models.inference import ChurnPredictor
+        pred1 = ChurnPredictor("churn_pipeline.joblib")
+        pred2 = ChurnPredictor("bank_churners_pipeline.joblib")
+        
+        res1 = pred1.predict(df.drop(columns=["id"]))
+        res2 = pred2.predict(df.drop(columns=["id"]))
+        
+        return {
+            "status": "success", 
+            "churn_prob": list(res1["churn_probability"].head(3)),
+            "bank_prob": list(res2["churn_probability"].head(3))
+        }
+    except Exception as e:
+        import traceback
+        return {"error": traceback.format_exc()}
+
+@router.post("/batch/reanalyze")
+def reanalyze_all(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        log_audit(db, current_user, "Bulk Reanalyze Customers", "/api/v1/predict/batch/reanalyze", request)
+        org_id = current_user.organization_id
+        
+        # 1. Fetch all customers for this org
+        customers = db.query(Customer).filter_by(organization_id=org_id).all()
+        if not customers:
+            return {"status": "success", "message": "No customers to reanalyze."}
+            
+        # 2. Convert to DataFrame and map to ML feature names
+        records = []
+        for c in customers:
+            d = c.__dict__.copy()
+            
+            # Estimate salary back from band
+            sal = 100000.0
+            band = d.get("salary_band")
+            if band == "low": sal = 40000.0
+            elif band == "mid": sal = 75000.0
+            elif band == "high": sal = 125000.0
+            elif band == "ultra-high": sal = 200000.0
+                
+            mapped = {
+                "id": d["id"],
+                "Geography": d.get("geography", "Unknown"),
+                "Age": d.get("age", 30),
+                "Tenure": d.get("tenure_months", 0),
+                "Balance": d.get("avg_balance", 0.0),
+                "NumOfProducts": d.get("num_products", 1),
+                "HasCrCard": d.get("has_credit_card", 0),
+                "IsActiveMember": d.get("is_active_member", 0),
+                "EstimatedSalary": sal,
+                "Gender": "Unknown", # Not in DB, required by pipeline
+                "CreditScore": 650,  # Not in DB, required by pipeline
+            }
+            records.append(mapped)
+            
+        df = pd.DataFrame.from_records(records)
+        
+        # 3. Predict using active model
+        # The sklearn pipeline uses make_column_selector(dtype_include=np.number)
+        # If we leave 'id' in, it will be scaled and cause a ValueError (feature count mismatch)
+        customer_ids = df["id"].copy()
+        
+        predictor = get_predictor()
+        result_df = predictor.predict(df.drop(columns=["id"]))
+        result_df["id"] = customer_ids
+        
+        # 4. Clear out old prediction history for these customers so dashboard counts are accurate
+        subq = db.query(Customer.id).filter(Customer.organization_id == org_id).subquery()
+        db.query(PredictionHistory).filter(PredictionHistory.customer_db_id.in_(subq)).delete(synchronize_session=False)
+        
+        # 5. Prepare PredictionHistory records
+        from sqlalchemy import insert
+        histories_to_add = []
+        
+        for idx, row in result_df.iterrows():
+            prob = float(row["churn_probability"])
+            histories_to_add.append({
+                "customer_db_id": int(row["id"]), # We kept id from DB
+                "model_id": 1,
+                "probability": prob,
+                "prediction": int(row["churn_prediction"]),
+                "risk_tier": _risk_tier(prob)
+            })
+            
+        # 5. Bulk insert in chunks
+        chunk_size = 5000
+        for i in range(0, len(histories_to_add), chunk_size):
+            chunk = histories_to_add[i:i+chunk_size]
+            db.execute(insert(PredictionHistory).values(chunk))
+            
+        db.commit()
+        return {"status": "success", "reanalyzed_count": len(histories_to_add)}
+        
+    except Exception as e:
+        import traceback
+        err_msg = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=str(err_msg))
 
 @router.post("/explain")
 def explain(

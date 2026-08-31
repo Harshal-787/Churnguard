@@ -4,6 +4,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { api, clearSession, currentUser } from '@/lib/api'
+import { CommandPalette } from './command-palette'
+import { SettingsModal } from './settings-modal'
 import { useEffect, useState } from 'react'
 import { Activity, BarChart3, Boxes, Database, Gauge, Home, LogOut, Menu, Search, Settings2, ShieldCheck, Users, X, ChevronLeft, ChevronRight, TrendingDown, Bell } from 'lucide-react'
 
@@ -23,6 +25,9 @@ export function AppShell({ children }: ShellProps) {
   const [statusData, setStatusData] = useState<any>(null)
   const [notifications, setNotifications] = useState<any[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const route = usePathname() || '/'
   const router = useRouter()
   const user = currentUser()
@@ -43,17 +48,31 @@ export function AppShell({ children }: ShellProps) {
 
   const handleSignOut = () => { clearSession(); router.push('/login') }
   
+  const fetchStats = () => {
+    api<any>('/dashboard/stats').then(res => {
+      if (res.data && res.data.metrics) {
+        setStatusData({
+          totalCustomers: res.data.metrics.total_customers,
+          retentionRate: (100 - res.data.metrics.churn_rate).toFixed(1),
+          atRisk: res.data.metrics.high_risk_customers
+        })
+      }
+    })
+  }
+
   useEffect(() => {
     // Fetch live model status summary
-    api<any>('/dashboard/stats').then(res => {
-      if (res.data) setStatusData(res.data)
-    })
+    fetchStats()
+    window.addEventListener('cg_stats_updated', fetchStats)
+    
     api<any[]>('/notifications').then(res => {
       if (res.data) setNotifications(res.data)
     })
-  }, [])
+    
+    return () => window.removeEventListener('cg_stats_updated', fetchStats)
+  }, [route])
   return <div className="min-h-screen bg-background text-foreground lg:flex">
-    <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-sidebar-border bg-sidebar py-6 transition-all duration-300 lg:static lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-20 px-3' : 'w-72 px-5'}`}>
+    <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-sidebar-border bg-sidebar py-6 transition-all duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-20 px-3' : 'w-72 px-5'}`}>
       <div className={`flex items-center ${isCollapsed ? 'justify-center relative h-8' : 'justify-between'} px-2`}>
         {!isCollapsed && <div className="flex items-center gap-2 text-sidebar-foreground">
           <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary drop-shadow-sm shrink-0">
@@ -111,7 +130,7 @@ export function AppShell({ children }: ShellProps) {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-sidebar-foreground/60">At Risk</span>
-                <span className="font-medium text-destructive">{statusData.atRisk} accounts</span>
+                <span className="font-medium text-destructive">{Number(statusData.atRisk).toLocaleString()} accounts</span>
               </div>
             </div>
           ) : (
@@ -125,7 +144,11 @@ export function AppShell({ children }: ShellProps) {
       </button>
     </aside>
     {open && <button aria-label="Close navigation" onClick={() => setOpen(false)} className="fixed inset-0 z-30 bg-foreground/20 lg:hidden" />}
-    <div className="min-w-0 flex-1"><header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border/70 bg-background/85 px-4 backdrop-blur md:px-8"><div className="flex items-center gap-3"><button onClick={() => setOpen(true)} className="rounded-lg border border-border p-2 lg:hidden" aria-label="Open navigation"><Menu className="size-4" /></button><div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex"><span>Workspace</span><span>/</span><span className="font-medium text-foreground">{links.find((l) => l.path === route)?.label || (route === '/admin' ? 'Admin console' : 'Customer profile')}</span></div></div><div className="flex items-center gap-3"><button className="hidden items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground sm:flex"><Search className="size-3.5" />Search <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono">⌘ K</kbd></button>
+    <div className="min-w-0 flex-1"><header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border/70 bg-background/85 px-4 backdrop-blur md:px-8"><div className="flex items-center gap-3"><button onClick={() => setOpen(true)} className="rounded-lg border border-border p-2 lg:hidden" aria-label="Open navigation"><Menu className="size-4" /></button><div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex"><span>Workspace</span><span>/</span><span className="font-medium text-foreground">{links.find((l) => l.path === route)?.label || (route === '/admin' ? 'Admin console' : 'Customer profile')}</span></div></div><div className="flex items-center gap-3">
+    <button onClick={() => setShowCommandPalette(true)} className="hidden items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground sm:flex hover:bg-muted transition">
+      <Search className="size-3.5" />Search 
+      <kbd className="rounded bg-muted px-1.5 py-0.5 font-mono">⌘ K</kbd>
+    </button>
     
     <div className="relative">
       <button onClick={() => setShowNotifications(!showNotifications)} className="relative rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Notifications">
@@ -167,7 +190,65 @@ export function AppShell({ children }: ShellProps) {
       )}
     </div>
     
-    <button className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Settings"><Settings2 className="size-4" /></button><div className="grid size-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{(user?.name || user?.email || 'U').slice(0,1).toUpperCase()}</div></div></header><main className="mx-auto max-w-[1600px] p-4 md:p-8">{children}</main></div>
+    <button onClick={() => setShowSettings(true)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Settings">
+      <Settings2 className="size-4" />
+    </button>
+    
+    <div className="relative">
+      <button 
+        onClick={() => setShowProfileMenu(!showProfileMenu)}
+        className="size-8 rounded-full bg-primary/10 text-primary border border-primary/20 hover:ring-2 hover:ring-primary/40 transition overflow-hidden"
+      >
+        {user?.profile_picture_url ? (
+          <img src={`http://localhost:8000${user.profile_picture_url}`} alt="Profile" className="w-full h-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-xs font-semibold">{(user?.name || user?.full_name || user?.email || 'U').slice(0,1).toUpperCase()}</div>
+        )}
+      </button>
+      
+      {showProfileMenu && (
+        <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-card shadow-lg flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex flex-col border-b border-border p-4 bg-muted/20">
+            <span className="font-semibold text-sm truncate">{user?.name || user?.full_name || 'Unknown User'}</span>
+            <span className="text-xs text-muted-foreground truncate">{user?.email || 'no-email'}</span>
+            <span className="mt-2 inline-flex w-fit items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+              {user?.role || 'Viewer'}
+            </span>
+          </div>
+          <div className="p-1">
+            <button 
+              onClick={() => { setShowProfileMenu(false); setShowSettings(true) }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Settings2 className="size-4" /> Profile Settings
+            </button>
+            <button 
+              onClick={() => { 
+                clearSession()
+                window.location.href = '/login'
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
+            >
+              <LogOut className="size-4" /> Sign Out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+    
+    </div></header><main className="mx-auto max-w-[1600px] p-4 md:p-8">{children}</main></div>
+    
+    <CommandPalette 
+      open={showCommandPalette} 
+      setOpen={setShowCommandPalette} 
+      onOpenSettings={() => setShowSettings(true)}
+    />
+    
+    <SettingsModal
+      open={showSettings}
+      setOpen={setShowSettings}
+      role={user?.role || 'Viewer'}
+    />
   </div>
 }
 

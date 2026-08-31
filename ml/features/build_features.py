@@ -8,8 +8,9 @@ import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
+from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
 
 class FintechFeatureEngineer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
@@ -18,30 +19,38 @@ class FintechFeatureEngineer(BaseEstimator, TransformerMixin):
     def transform(self, X):
         X = X.copy()
         
-        # Protect against div by zero
-        X["Balance_to_Salary_Ratio"] = X["Balance"] / (X["EstimatedSalary"] + 1e-6)
-        X["Tenure_to_Age_Ratio"] = X["Tenure"] / (X["Age"] + 1e-6)
-        X["Credit_Utilization_Proxy"] = X["Balance"] / (X["CreditScore"] * X["EstimatedSalary"] + 1e-6)
-        
-        multi_product = (X["NumOfProducts"] >= 2).astype(int)
-        X["Engagement_Score"] = X["IsActiveMember"] + X["HasCrCard"] + multi_product
+        # Safely attempt domain-specific features if columns exist
+        if "Balance" in X.columns and "EstimatedSalary" in X.columns:
+            X["Balance_to_Salary_Ratio"] = X["Balance"] / (X["EstimatedSalary"] + 1e-6)
+            
+        if "Tenure" in X.columns and "Age" in X.columns:
+            X["Tenure_to_Age_Ratio"] = X["Tenure"] / (X["Age"] + 1e-6)
+            
+        if "Balance" in X.columns and "CreditScore" in X.columns and "EstimatedSalary" in X.columns:
+            X["Credit_Utilization_Proxy"] = X["Balance"] / (X["CreditScore"] * X["EstimatedSalary"] + 1e-6)
+            
+        if "NumOfProducts" in X.columns and "IsActiveMember" in X.columns and "HasCrCard" in X.columns:
+            multi_product = (X["NumOfProducts"] >= 2).astype(int)
+            X["Engagement_Score"] = X["IsActiveMember"] + X["HasCrCard"] + multi_product
 
         return X
 
 def get_preprocessing_pipeline() -> Pipeline:
-    numeric_features = [
-        "CreditScore", "Age", "Tenure", "Balance", "NumOfProducts",
-        "HasCrCard", "IsActiveMember", "EstimatedSalary",
-        "Balance_to_Salary_Ratio", "Tenure_to_Age_Ratio", 
-        "Credit_Utilization_Proxy", "Engagement_Score"
-    ]
+    # Dynamic column selection for AutoML capability
+    numeric_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler())
+    ])
     
-    categorical_features = ["Geography", "Gender"]
+    categorical_transformer = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
+    ])
 
     preprocessor = ColumnTransformer(
         transformers=[
-            ("num", StandardScaler(), numeric_features),
-            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), categorical_features)
+            ("num", numeric_transformer, make_column_selector(dtype_include=np.number)),
+            ("cat", categorical_transformer, make_column_selector(dtype_exclude=np.number))
         ],
         remainder="drop" 
     )
@@ -53,18 +62,10 @@ def get_preprocessing_pipeline() -> Pipeline:
 
     return pipeline
 
-def get_feature_names(pipeline: Pipeline) -> list:
-    """Extracts feature names from fitted pipeline."""
+def get_feature_names(pipeline: Pipeline, original_columns=None) -> list:
+    """Extracts feature names dynamically from fitted pipeline."""
     preprocessor = pipeline.named_steps["preprocessor"]
     
-    numeric_features = [
-        "CreditScore", "Age", "Tenure", "Balance", "NumOfProducts",
-        "HasCrCard", "IsActiveMember", "EstimatedSalary",
-        "Balance_to_Salary_Ratio", "Tenure_to_Age_Ratio", 
-        "Credit_Utilization_Proxy", "Engagement_Score"
-    ]
-    
-    cat_encoder = preprocessor.named_transformers_["cat"]
-    cat_features = list(cat_encoder.get_feature_names_out(["Geography", "Gender"]))
-    
-    return numeric_features + cat_features
+    # We must construct a dummy DataFrame to get the feature names out of make_column_selector
+    # However, sklearn 1.0+ ColumnTransformer provides get_feature_names_out directly!
+    return list(preprocessor.get_feature_names_out())

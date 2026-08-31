@@ -16,6 +16,7 @@ class UserResponse(BaseModel):
     full_name: str
     role: RoleEnum
     organization_id: int
+    profile_picture_url: Optional[str] = None
 
     class Config:
         from_attributes = True

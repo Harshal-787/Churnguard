@@ -24,6 +24,14 @@ export default function FeedPage() {
     setError(r.error || '')
     setBusy(false)
   }
+  const wipeData = async () => {
+    if (!confirm("Are you sure? This will permanently delete all customers and predictions in your workspace.")) return;
+    setBusy(true);
+    const r = await api('/organizations/me/data', { method: 'DELETE' });
+    setMessage(r.error ? '' : 'Dataset successfully wiped.');
+    setError(r.error || '');
+    setBusy(false);
+  }
   
   return (
     <>
@@ -75,7 +83,7 @@ export default function FeedPage() {
             <a href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/data/template`} className="flex items-center justify-between rounded-xl border border-border p-4 text-sm font-medium hover:bg-muted transition-colors">
               Download CSV template <Download className="size-4" />
             </a>
-            <Button variant="danger" className="w-full justify-between p-4 h-auto rounded-xl">
+            <Button variant="danger" disabled={busy} onClick={wipeData} className="w-full justify-between p-4 h-auto rounded-xl">
               <span className="flex items-center gap-2"><X className="size-4" />Wipe dataset</span>
             </Button>
           </div>

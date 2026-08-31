@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+import os
+import shutil
+import uuid
 
 from ..database import settings
 from ..models import User, Organization, RoleEnum
@@ -11,30 +14,51 @@ from ..deps import get_db, get_current_user
 
 router = APIRouter()
 
+UPLOAD_DIR = "uploads/profiles"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
+async def register_user(
+    email: str = Form(...),
+    password: str = Form(...),
+    full_name: str = Form(...),
+    organization_name: str = Form(...),
+    role: RoleEnum = Form(RoleEnum.VIEWER),
+    profile_picture: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
     # Check if user exists
-    db_user = db.query(User).filter(User.email == user.email).first()
+    db_user = db.query(User).filter(User.email == email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
         
     # Get or create organization
-    org = db.query(Organization).filter(Organization.name == user.organization_name).first()
+    org = db.query(Organization).filter(Organization.name == organization_name).first()
     if not org:
-        org = Organization(name=user.organization_name)
+        org = Organization(name=organization_name)
         db.add(org)
         db.flush() # flush to get org.id
         
-    # Set role based on what was passed (default is VIEWER)
-    role = user.role
+    # Handle Profile Picture Upload
+    profile_picture_url = None
+    if profile_picture:
+        file_ext = profile_picture.filename.split(".")[-1]
+        unique_filename = f"{uuid.uuid4()}.{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
         
-    hashed_password = get_password_hash(user.password)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(profile_picture.file, buffer)
+            
+        profile_picture_url = f"/static/profiles/{unique_filename}"
+        
+    hashed_password = get_password_hash(password)
     new_user = User(
-        email=user.email,
+        email=email,
         hashed_password=hashed_password,
-        full_name=user.full_name,
+        full_name=full_name,
         organization_id=org.id,
-        role=role
+        role=role,
+        profile_picture_url=profile_picture_url
     )
     db.add(new_user)
     db.commit()

@@ -1,7 +1,7 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
-import { ArrowRight, LockKeyhole } from 'lucide-react'
+import { FormEvent, useState, useRef } from 'react'
+import { ArrowRight, ArrowLeft, LockKeyhole, ImagePlus } from 'lucide-react'
 import { api, saveSession } from '@/lib/api'
 import { Button } from '@/components/shared/ui'
 import { useRouter } from 'next/navigation'
@@ -14,26 +14,40 @@ export default function RegisterPage() {
   const [organization, setOrganization] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('Data Analyst')
+  const [profilePicture, setProfilePicture] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      setProfilePicture(file)
+      setPreviewUrl(URL.createObjectURL(file))
+    }
+  }
   
   const submit = async (e: FormEvent) => { 
     e.preventDefault()
     setBusy(true)
     setError('')
     
-    // Register the user
+    // Register the user using FormData
+    const formData = new FormData()
+    formData.append('email', email)
+    formData.append('password', password)
+    formData.append('full_name', fullName)
+    formData.append('organization_name', organization)
+    formData.append('role', role)
+    if (profilePicture) formData.append('profile_picture', profilePicture)
+    
     const result = await api<any>('/auth/register', { 
       method: 'POST', 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        full_name: fullName,
-        organization_name: organization,
-        password,
-        role
-      })
+      headers: {}, // Do not set Content-Type, let fetch auto-set it for FormData
+      body: formData
     })
     
     if (result.error) {
@@ -86,6 +100,10 @@ export default function RegisterPage() {
       </div>
       <div className="flex items-center justify-center bg-background p-6 md:p-12">
         <div className="w-full max-w-md">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-8 group">
+            <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-1" />
+            Back to home
+          </Link>
           <div className="mb-10 flex items-center gap-2 lg:hidden">
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary drop-shadow-sm shrink-0">
               <path d="M16 2L3 9.5V22.5L16 30L29 22.5V9.5L16 2Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
@@ -101,6 +119,29 @@ export default function RegisterPage() {
           <p className="mt-2 text-sm leading-6 text-muted-foreground">Set up your account to start monitoring retention.</p>
           
           <form onSubmit={submit} className="mt-8 flex flex-col gap-4">
+            <div className="flex flex-col items-center mb-2">
+              <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+              <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()}
+                className="relative flex items-center justify-center size-24 rounded-full border-2 border-dashed border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 transition overflow-hidden group"
+              >
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Profile preview" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                    <ImagePlus className="size-6" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wider">Photo</span>
+                  </div>
+                )}
+                {previewUrl && (
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-medium">
+                    Change
+                  </div>
+                )}
+              </button>
+            </div>
+            
             <label className="flex flex-col gap-2 text-sm font-medium">Full Name
               <input required type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="rounded-xl border border-input bg-card px-3 py-3 outline-none focus:ring-2 focus:ring-ring" placeholder="John Doe" />
             </label>

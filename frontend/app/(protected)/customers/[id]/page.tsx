@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/app-shell'
 import { Card, State } from '@/components/shared/ui'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 
 type RecordData = Record<string, any>
 
@@ -24,7 +24,7 @@ export default function CustomerDetailPage() {
     }) 
   }, [id])
   
-  const shapFeatures = listFrom<RecordData>(data?.explanations || data?.shap_values || data?.features)
+  const shapFeatures = listFrom<RecordData>(data?.explanations || data?.shap_values || data?.features || data?.shapData)
 
   return (
     <>
@@ -47,7 +47,7 @@ export default function CustomerDetailPage() {
           <Card className="p-6">
             <h2 className="font-semibold">Risk assessment</h2>
             <div className="mt-8 flex items-end gap-3">
-              <span className="font-mono text-6xl font-semibold">{displayValue(data.risk_score ?? data.churn_probability, '%')}</span>
+              <span className="font-mono text-6xl font-semibold">{data.risk_score ?? data.churn_probability ? ((data.risk_score ?? data.churn_probability) * 100).toFixed(2) + '%' : '—'}</span>
               <span className="mb-2 rounded-full bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive">
                 {data.risk_level || data.status || '—'}
               </span>
@@ -57,7 +57,7 @@ export default function CustomerDetailPage() {
                 ['Plan', data.plan], 
                 ['Tenure', data.tenure], 
                 ['Last activity', data.last_activity], 
-                ['Account value', data.lifetime_value]
+                ['Account value', data.lifetime_value ? `$${Number(data.lifetime_value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '—']
               ].map(([k,v]) => (
                 <div key={k} className="flex justify-between border-b border-border pb-3">
                   <span className="text-muted-foreground">{k}</span>
@@ -71,15 +71,28 @@ export default function CustomerDetailPage() {
             <h2 className="font-semibold">Model explanation</h2>
             <p className="mt-1 text-sm text-muted-foreground">Factors driving this customer's risk prediction.</p>
             {shapFeatures.length ? (
-              <div className="mt-6 h-80">
+              <div className="mt-6 h-80 flex flex-col items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={shapFeatures} layout="vertical" margin={{ left: 50, right: 20 }}>
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="feature" type="category" axisLine={false} tickLine={false} className="text-xs text-muted-foreground font-mono" />
-                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }} />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                  <BarChart 
+                    data={[...shapFeatures].sort((a, b) => Math.abs(b.value) - Math.abs(a.value))} 
+                    layout="vertical" 
+                    margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+                    <XAxis type="number" axisLine={false} tickLine={false} className="text-xs font-mono" />
+                    <YAxis dataKey="feature" type="category" width={180} interval={0} axisLine={false} tickLine={false} className="text-xs font-mono" />
+                    <Tooltip 
+                      cursor={{ fill: 'transparent' }} 
+                      contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)' }}
+                      formatter={(value: any, name: any, props: any) => {
+                        const origValue = props.payload.value;
+                        const direction = origValue > 0 ? '+ (Increases Risk)' : '- (Decreases Risk)';
+                        return [`${Math.abs(origValue).toFixed(3)} ${direction}`, 'Impact'];
+                      }}
+                    />
+                    <Bar dataKey="value" radius={4}>
                       {shapFeatures.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} />
+                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#ef4444' : '#10b981'} />
                       ))}
                     </Bar>
                   </BarChart>

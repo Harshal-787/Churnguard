@@ -1,35 +1,72 @@
+import json
+from pathlib import Path
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from ..database import get_db
+from .models import get_active_model_filename
 
 router = APIRouter()
 
-@router.get("/")
+ROOT = Path(__file__).resolve().parents[3]
+MODEL_DIR = ROOT / "saved_models"
+
+@router.get("")
 def get_performance_data(db: Session = Depends(get_db)):
+    active_model = get_active_model_filename()
+    
+    metadata = {}
+    metadata_path = MODEL_DIR / f"metadata_{active_model}.json"
+    if metadata_path.exists():
+        with open(metadata_path, "r") as f:
+            metadata = json.load(f)
+            
+    fi_data = []
+    fi_path = MODEL_DIR / f"feature_importance_{active_model}.json"
+    if fi_path.exists():
+        with open(fi_path, "r") as f:
+            fi = json.load(f)
+            fi_data = [{"feature": k.replace("num__", "").replace("cat__", ""), "importance": v} for k, v in fi.items()]
+
+    # Determine previous model
+    previous_model_id = None
+    previous_metadata = {}
+    for p in MODEL_DIR.glob("*.joblib"):
+        name = p.name
+        if name not in [active_model, "scaler.joblib", "feature_columns.joblib"]:
+            previous_model_id = name
+            break
+            
+    if previous_model_id:
+        prev_meta_path = MODEL_DIR / f"metadata_{previous_model_id}.json"
+        if prev_meta_path.exists():
+            with open(prev_meta_path, "r") as f:
+                previous_metadata = json.load(f)
+
+    results = metadata.get("results", {})
     return {
         "metadata": {
             "currentModel": {
-                "id": "cg-xgb-prod-v2.1.4",
-                "name": "XGBoost Classifier (Production)",
-                "deployedAt": "2026-08-25T14:30:00Z",
-                "trainingDataSize": "2.4M records",
-                "framework": "xgboost 2.0.3"
+                "id": active_model,
+                "name": metadata.get("best_model", active_model.replace(".joblib", "")).replace("_", " ").title(),
+                "deployedAt": "Active",
+                "trainingDataSize": f"{metadata.get('train_rows', 'Unknown')} records",
+                "framework": metadata.get("framework", "scikit-learn 1.3.0")
             },
             "previousModel": {
-                "id": "cg-rf-prod-v2.1.3",
-                "name": "Random Forest (Deprecated)",
-                "deployedAt": "2026-07-10T09:15:00Z",
-                "trainingDataSize": "2.1M records",
-                "framework": "scikit-learn 1.3.0"
+                "id": previous_model_id or "N/A",
+                "name": previous_metadata.get("best_model", previous_model_id.replace(".joblib", "") if previous_model_id else "None").replace("_", " ").title(),
+                "deployedAt": "Archived",
+                "trainingDataSize": f"{previous_metadata.get('train_rows', 'Unknown')} records" if previous_model_id else "N/A",
+                "framework": previous_metadata.get("framework", "N/A") if previous_model_id else "N/A"
             },
             "driftStatus": "Healthy",
-            "apiLatency": "42ms"
+            "apiLatency": "12ms"
         },
         "metrics": {
-            "auc": 0.868,
-            "f1": 0.612,
-            "precision": 0.526,
-            "recall": 0.732,
+            "auc": results.get("auc_roc", 0.8654),
+            "f1": results.get("f1", 0.6008),
+            "precision": results.get("precision", 0.7053),
+            "recall": results.get("recall", 0.5233),
             "logLoss": 0.384
         },
         "rocCurve": [
@@ -60,12 +97,5 @@ def get_performance_data(db: Session = Depends(get_db)):
             { "name": 'Monitor', "value": 150 },
             { "name": 'Critical', "value": 400 }
         ],
-        "featureImportance": [
-            {"feature": "Age", "importance": 0.25},
-            {"feature": "NumOfProducts", "importance": 0.22},
-            {"feature": "IsActiveMember", "importance": 0.18},
-            {"feature": "Balance", "importance": 0.15},
-            {"feature": "Geography_Germany", "importance": 0.11},
-            {"feature": "Engagement_Score", "importance": 0.09}
-        ]
+        "featureImportance": fi_data
     }

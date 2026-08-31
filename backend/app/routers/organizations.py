@@ -52,20 +52,28 @@ def wipe_organization_data(
     """
     org_id = current_user.organization_id
     
-    # Get all customer IDs for this org
-    customer_ids = [c.id for c in db.query(Customer.id).filter(Customer.organization_id == org_id).all()]
-    
-    deleted_history = 0
-    deleted_customers = 0
-    
-    if customer_ids:
-        # Delete prediction history first due to foreign keys
-        deleted_history = db.query(PredictionHistory).filter(PredictionHistory.customer_db_id.in_(customer_ids)).delete(synchronize_session=False)
+    from sqlalchemy import text
+    try:
+        # Delete prediction history first
+        res_history = db.execute(text("""
+            DELETE FROM prediction_history 
+            USING customers 
+            WHERE prediction_history.customer_db_id = customers.id 
+            AND customers.organization_id = :org_id
+        """), {"org_id": org_id})
+        deleted_history = res_history.rowcount
         
         # Delete customers
-        deleted_customers = db.query(Customer).filter(Customer.organization_id == org_id).delete(synchronize_session=False)
+        res_customers = db.execute(text("""
+            DELETE FROM customers 
+            WHERE organization_id = :org_id
+        """), {"org_id": org_id})
+        deleted_customers = res_customers.rowcount
         
-    db.commit()
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
     
     log_audit(db, current_user, "Wipe Organization Data", "/api/v1/organizations/me/data", request)
     
