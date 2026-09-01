@@ -8,6 +8,7 @@ from ..deps import get_db, get_current_user, require_role
 from ..schemas import RoleEnum
 from ml.models.inference import ChurnPredictor
 from ml.models.explain import explain_batch
+from ..llm_agent import generate_retention_strategy
 
 # Avoid circular imports in main.py by defining schemas here for prediction
 from pydantic import BaseModel, Field
@@ -117,6 +118,60 @@ def predict_single(
         churn_prediction=pred,
         risk_tier=tier,
     )
+
+@router.post("/strategy/{customer_id}")
+def get_customer_strategy(
+    customer_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    log_audit(db, current_user, f"Generated LLM Strategy for {customer_id}", "/api/v1/predict/strategy", request)
+    
+    # 1. Fetch customer and prediction history
+    cust = db.query(Customer).filter(
+        Customer.customer_id == customer_id,
+        Customer.organization_id == current_user.organization_id
+    ).first()
+    
+    if not cust:
+        raise HTTPException(status_code=404, detail="Customer not found")
+        
+    history = db.query(PredictionHistory).filter(
+        PredictionHistory.customer_db_id == cust.id
+    ).order_by(PredictionHistory.created_at.desc()).first()
+    
+    if not history:
+        raise HTTPException(status_code=404, detail="No prediction history for customer")
+        
+    # 2. Return cached if exists and valid
+    if history.llm_strategy and "error" not in history.llm_strategy:
+        strategy = history.llm_strategy
+    else:
+        # 3. Generate new strategy
+        cust_dict = {
+            c.name: getattr(cust, c.name) for c in cust.__table__.columns
+            if c.name not in ["id", "organization_id", "created_at"]
+        }
+        
+        strategy = generate_retention_strategy(cust_dict, history.top_factors or [])
+        
+        # 4. Save only if successful
+        if "error" not in strategy:
+            history.llm_strategy = strategy
+            db.commit()
+        else:
+            raise HTTPException(status_code=500, detail=strategy["error"])
+
+    # 5. Format and inject dynamic properties for the frontend
+    if "analysis" in strategy and "action_plan" not in strategy:
+        strategy["action_plan"] = strategy["analysis"] + " " + " ".join(strategy.get("action_items", []))
+    if "risk_factor" not in strategy:
+        strategy["risk_factor"] = "Derived from historical signals"
+        
+    strategy["retention_prob"] = round((1.0 - history.probability) * 100, 1)
+
+    return strategy
 
 @router.post("/batch", response_model=list[PredictionResponse])
 def predict_batch(
@@ -363,6 +418,18 @@ def reanalyze_all(
         result_df = predictor.predict(df.drop(columns=["id"]))
         result_df["id"] = customer_ids
         
+        # 3.5 Generate SHAP explanations ONLY for high risk (prob >= 0.6) to save time
+        from ml.models.explain import explain_batch
+        
+        high_risk_indices = result_df[result_df["churn_probability"] >= 0.6].index
+        if len(high_risk_indices) > 0:
+            high_risk_raw = df.loc[high_risk_indices].drop(columns=["id"])
+            high_risk_explanations = explain_batch(high_risk_raw)
+            # Create mapping
+            explanations_map = {idx: exp for idx, exp in zip(high_risk_indices, high_risk_explanations)}
+        else:
+            explanations_map = {}
+        
         # 4. Clear out old prediction history for these customers so dashboard counts are accurate
         subq = db.query(Customer.id).filter(Customer.organization_id == org_id).subquery()
         db.query(PredictionHistory).filter(PredictionHistory.customer_db_id.in_(subq)).delete(synchronize_session=False)
@@ -378,7 +445,8 @@ def reanalyze_all(
                 "model_id": 1,
                 "probability": prob,
                 "prediction": int(row["churn_prediction"]),
-                "risk_tier": _risk_tier(prob)
+                "risk_tier": _risk_tier(prob),
+                "top_factors": explanations_map.get(idx, {}).get("top_factors")
             })
             
         # 5. Bulk insert in chunks

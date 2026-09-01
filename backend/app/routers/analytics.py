@@ -6,6 +6,12 @@ from ..models import User, Customer, PredictionHistory
 from ..deps import get_current_user
 
 from sqlalchemy import func, cast, Integer
+from fastapi.responses import JSONResponse, StreamingResponse, Response
+from typing import Optional
+from fastapi import Query
+import io
+import csv
+from fpdf import FPDF
 
 router = APIRouter()
 
@@ -65,7 +71,70 @@ def get_analytics_data(
         bucket_key = f"{idx/10:.1f}-{idx/10+0.1:.1f}"
         risk_buckets[bucket_key] += count
 
+    # Financial Impact (Revenue)
+    revenue_results = db.query(
+        PredictionHistory.risk_tier,
+        func.sum(Customer.avg_balance)
+    ).join(Customer).filter(
+        Customer.organization_id == org_id
+    ).group_by(PredictionHistory.risk_tier).all()
+    
+    revenue_at_risk = sum([val for tier, val in revenue_results if tier == "high" and val])
+    safe_revenue = sum([val for tier, val in revenue_results if tier != "high" and val])
+
+    # Global SHAP Factors
+    shap_results = db.query(
+        PredictionHistory.top_factors
+    ).join(Customer).filter(
+        Customer.organization_id == org_id,
+        PredictionHistory.risk_tier == "high",
+        PredictionHistory.top_factors.isnot(None)
+    ).all()
+    
+    factor_counts = {}
+    for (top_factors,) in shap_results:
+        if isinstance(top_factors, list) and len(top_factors) > 0:
+            first_feat = top_factors[0].get("feature")
+            if first_feat:
+                factor_counts[first_feat] = factor_counts.get(first_feat, 0) + 1
+            
+    shap_factors_list = [{"name": k, "value": v} for k, v in factor_counts.items()]
+    
+    # Segment Averages
+    segment_results = db.query(
+        PredictionHistory.risk_tier,
+        func.avg(Customer.avg_balance).label("avg_bal"),
+        func.avg(Customer.tenure_months).label("avg_tenure"),
+        func.avg(Customer.support_tickets_last_90d).label("avg_support"),
+        func.avg(Customer.monthly_transactions).label("avg_tx")
+    ).join(Customer).filter(
+        Customer.organization_id == org_id
+    ).group_by(PredictionHistory.risk_tier).all()
+    
+    safe_seg = {"avg_bal": 0, "avg_tenure": 0, "avg_support": 0, "avg_tx": 0}
+    risk_seg = {"avg_bal": 0, "avg_tenure": 0, "avg_support": 0, "avg_tx": 0}
+    
+    for tier, bal, tenure, support, tx in segment_results:
+        target = risk_seg if tier == "high" else safe_seg
+        if bal: target["avg_bal"] = bal
+        if tenure: target["avg_tenure"] = tenure
+        if support: target["avg_support"] = support
+        if tx: target["avg_tx"] = tx
+        
+    segment_averages = [
+        {"subject": "Balance", "safe": safe_seg["avg_bal"], "atRisk": risk_seg["avg_bal"], "fullMark": max(safe_seg["avg_bal"], risk_seg["avg_bal"], 1) * 1.2},
+        {"subject": "Tenure", "safe": safe_seg["avg_tenure"] * 100, "atRisk": risk_seg["avg_tenure"] * 100, "fullMark": max(safe_seg["avg_tenure"], risk_seg["avg_tenure"], 1) * 120}, # Multiplied by 100 so it scales visually with balance
+        {"subject": "Support Tix", "safe": safe_seg["avg_support"] * 1000, "atRisk": risk_seg["avg_support"] * 1000, "fullMark": max(safe_seg["avg_support"], risk_seg["avg_support"], 1) * 1200},
+        {"subject": "Transactions", "safe": safe_seg["avg_tx"] * 10, "atRisk": risk_seg["avg_tx"] * 10, "fullMark": max(safe_seg["avg_tx"], risk_seg["avg_tx"], 1) * 12},
+    ]
+
     return {
+        "financials": {
+            "safeRevenue": safe_revenue,
+            "revenueAtRisk": revenue_at_risk
+        },
+        "shapFactors": shap_factors_list,
+        "segmentAverages": segment_averages,
         "geography": [
             {"name": k, "safe": v["safe"], "atRisk": v["atRisk"]} for k, v in geo_stats.items()
         ],
@@ -80,3 +149,94 @@ def get_analytics_data(
             {"cohort": "Q2 2024", "m1": 99, "m3": 96, "m6": 91, "m12": 87}
         ] if total_predictions > 0 else []
     }
+
+@router.get("/export")
+def export_analytics(
+    format: str = Query("csv", description="Format of export: csv, json, pdf"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = current_user.organization_id
+    
+    # Query customers and their predictions
+    results = db.query(Customer, PredictionHistory).join(
+        PredictionHistory, Customer.id == PredictionHistory.customer_db_id
+    ).filter(
+        Customer.organization_id == org_id
+    ).order_by(PredictionHistory.probability.desc()).all()
+    
+    data = []
+    for customer, pred in results:
+        data.append({
+            "Customer ID": customer.customer_id,
+            "Geography": customer.geography or "Unknown",
+            "Tenure (Months)": customer.tenure_months or 0,
+            "Risk Tier": pred.risk_tier.capitalize() if pred.risk_tier else "Unknown",
+            "Probability": f"{pred.probability:.2f}",
+            "Top Factor": pred.top_factors[0].get("feature") if pred.top_factors and isinstance(pred.top_factors, list) and len(pred.top_factors) > 0 else "N/A"
+        })
+        
+    from ..models import AuditLog
+    log = AuditLog(
+        user_id=current_user.id,
+        organization_id=org_id,
+        action="EXPORT_DATA",
+        endpoint="/api/v1/analytics/export",
+        details={"format": format}
+    )
+    db.add(log)
+    db.commit()
+        
+    if format.lower() == "json":
+        return JSONResponse(content=data)
+        
+    elif format.lower() == "pdf":
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=16)
+        pdf.cell(200, 10, txt="ChurnGuard Analytics Export", ln=1, align='C')
+        pdf.set_font("Helvetica", size=10)
+        pdf.cell(200, 10, txt="Customer Risk Report", ln=1, align='C')
+        pdf.ln(10)
+        
+        # Table header
+        headers = ["Customer ID", "Geography", "Tenure", "Risk Tier", "Probability", "Top Factor"]
+        col_widths = [30, 30, 20, 25, 25, 60]
+        
+        pdf.set_font("Helvetica", style="B", size=9)
+        for i, h in enumerate(headers):
+            pdf.cell(col_widths[i], 10, h, border=1)
+        pdf.ln()
+        
+        # Table rows
+        pdf.set_font("Helvetica", size=8)
+        # Filter to include all High Risk customers
+        high_risk_data = [row for row in data if row["Risk Tier"] == "High"]
+        
+        for row in high_risk_data:
+            pdf.cell(col_widths[0], 8, str(row["Customer ID"]), border=1)
+            pdf.cell(col_widths[1], 8, str(row["Geography"])[:15], border=1)
+            pdf.cell(col_widths[2], 8, str(row["Tenure (Months)"]), border=1)
+            pdf.cell(col_widths[3], 8, str(row["Risk Tier"]), border=1)
+            pdf.cell(col_widths[4], 8, str(row["Probability"]), border=1)
+            pdf.cell(col_widths[5], 8, str(row["Top Factor"])[:35], border=1) # truncate to fit
+            pdf.ln()
+            
+        pdf_bytes = bytearray(pdf.output())
+        return Response(content=bytes(pdf_bytes), media_type="application/pdf", headers={
+            "Content-Disposition": "attachment; filename=churnguard_export.pdf"
+        })
+        
+    else: # Default CSV
+        output = io.StringIO()
+        if data:
+            writer = csv.DictWriter(output, fieldnames=data[0].keys())
+            writer.writeheader()
+            writer.writerows(data)
+            
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]), 
+            media_type="text/csv", 
+            headers={"Content-Disposition": "attachment; filename=churnguard_export.csv"}
+        )

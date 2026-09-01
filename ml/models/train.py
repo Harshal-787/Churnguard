@@ -26,6 +26,7 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import VotingClassifier, RandomForestClassifier
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
+from catboost import CatBoostClassifier
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -113,8 +114,8 @@ def main():
     print("Starting Optuna Hyperparameter Optimization (5-Fold CV)...")
     study = optuna.create_study(direction="maximize")
     
-    # Using 10 trials for speed in demo, ideally 50-100 for prod
-    study.optimize(lambda trial: objective(trial, X_train, y_train, preprocessor), n_trials=10)
+    # Using 50 trials for deep hyperparameter tuning to get the absolute best model
+    study.optimize(lambda trial: objective(trial, X_train, y_train, preprocessor), n_trials=50)
     
     best_params = study.best_params
     scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
@@ -142,9 +143,17 @@ def main():
             class_weight="balanced",
             random_state=RANDOM_SEED
         )
+        base_cat = CatBoostClassifier(
+            iterations=best_params.get("n_estimators", 200),
+            learning_rate=best_params.get("learning_rate", 0.05),
+            depth=best_params.get("max_depth", 5),
+            verbose=0,
+            random_seed=RANDOM_SEED,
+            auto_class_weights="Balanced"
+        )
         
         ensemble = VotingClassifier(
-            estimators=[('xgb', base_xgb), ('lgbm', base_lgbm), ('rf', base_rf)],
+            estimators=[('xgb', base_xgb), ('lgbm', base_lgbm), ('rf', base_rf), ('cat', base_cat)],
             voting='soft'
         )
         

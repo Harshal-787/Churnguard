@@ -1,2 +1,0 @@
-customer_id,CreditScore,Geography,Gender,Age,Tenure,Balance,NumOfProducts,HasCrCard,IsActiveMember,EstimatedSalary
-CUST-001,619,France,Female,42,2,0.0,1,1,1,101348.88

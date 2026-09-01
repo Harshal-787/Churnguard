@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { api, listFrom } from '@/lib/api'
 import { PageHeader } from '@/components/app-shell'
 import { Card, State } from '@/components/shared/ui'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, LineChart, Line } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, LineChart, Line, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
 import { BarChart3 } from 'lucide-react'
 
 export default function AnalyticsPage() {
@@ -46,12 +46,22 @@ export default function AnalyticsPage() {
   const salary = listFrom<any>(data.salaryBands)
   const cohorts = listFrom<any>(data.cohorts)
 
-  // Formatter for Y-Axis numbers (e.g., 15000 -> 15k)
   const formatYAxis = (tickItem: number) => {
     if (tickItem === 0) return '0'
     if (tickItem >= 1000) return `${(tickItem / 1000).toFixed(0)}k`
     return tickItem.toString()
   }
+
+  const formatCurrency = (val: number) => `$${(val / 1000).toFixed(0)}k`
+
+  const fin = data.financials || { safeRevenue: 0, revenueAtRisk: 0 }
+  const revData = [
+    { name: 'Safe Revenue', value: fin.safeRevenue },
+    { name: 'At Risk Revenue', value: fin.revenueAtRisk }
+  ]
+  const shapData = listFrom<any>(data.shapFactors).sort((a,b) => b.value - a.value).slice(0, 5)
+  const segmentData = listFrom<any>(data.segmentAverages)
+  const pieColors = ['#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981']
 
   return (
     <>
@@ -62,6 +72,68 @@ export default function AnalyticsPage() {
       />
       
       <div className="grid gap-6">
+
+        {/* FINANCIALS & SHAP */}
+        <div className="grid gap-6 xl:grid-cols-3">
+          
+          <Card className="p-6">
+            <h2 className="font-semibold mb-2">Revenue Impact</h2>
+            <p className="text-xs text-muted-foreground mb-4">Total MRR broken down by current ML risk tier.</p>
+            <div className="h-64 w-full">
+              {fin.safeRevenue > 0 || fin.revenueAtRisk > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={revData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
+                      <Cell fill="var(--primary)" />
+                      <Cell fill="var(--destructive)" />
+                    </Pie>
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '5px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : <State empty="No revenue data available." />}
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="font-semibold mb-2">Global SHAP Drivers</h2>
+            <p className="text-xs text-muted-foreground mb-4">Top factors causing risk across all high-risk accounts.</p>
+            <div className="h-64 w-full">
+              {shapData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={shapData} outerRadius={80} dataKey="value" label={({name, percent}) => `${(percent * 100).toFixed(0)}%`} labelLine={false} stroke="none">
+                      {shapData.map((_, index) => <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : <State empty="No SHAP data available." />}
+            </div>
+          </Card>
+          
+          <Card className="p-6">
+            <h2 className="font-semibold mb-2">Segment Profile</h2>
+            <p className="text-xs text-muted-foreground mb-4">Average trait comparison: Safe vs At Risk.</p>
+            <div className="h-64 w-full">
+              {segmentData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={segmentData}>
+                    <PolarGrid stroke="var(--border)" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
+                    <PolarRadiusAxis angle={30} domain={[0, 'dataMax']} tick={false} axisLine={false} />
+                    <Radar name="Safe" dataKey="safe" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.3} />
+                    <Radar name="At Risk" dataKey="atRisk" stroke="var(--destructive)" fill="var(--destructive)" fillOpacity={0.4} />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              ) : <State empty="No segment data available." />}
+            </div>
+          </Card>
+          
+        </div>
         
         {/* RISK HISTOGRAM */}
         <Card className="p-6">

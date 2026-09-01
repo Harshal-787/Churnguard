@@ -105,10 +105,7 @@ class ChurnPredictor:
             
             # Reorder and filter out extra columns (like 'id')
             input_df = input_df[list(expected_features)]
-            print(f"DEBUG EXPECTED: {expected_features}")
-            print(f"DEBUG ACTUAL COLUMNS AFTER IMPUTATION: {input_df.columns.tolist()}")
         else:
-            print("DEBUG EXPECTED: None")
             if "id" in input_df.columns:
                 input_df = input_df.drop(columns=["id"])
                 

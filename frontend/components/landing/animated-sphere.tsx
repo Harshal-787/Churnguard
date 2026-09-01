@@ -28,6 +28,7 @@ export function AnimatedSphere() {
     window.addEventListener("resize", resize);
 
     const render = () => {
+      const isDark = document.documentElement.classList.contains("dark");
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
 
@@ -77,7 +78,8 @@ export function AnimatedSphere() {
       // Draw points
       points.forEach((point) => {
         const alpha = 0.2 + (point.z + 1) * 0.4;
-        ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+        const color = isDark ? `rgba(255, 255, 255, ${alpha})` : `rgba(0, 0, 0, ${alpha})`;
+        ctx.fillStyle = color;
         ctx.fillText(point.char, point.x, point.y);
       });
 

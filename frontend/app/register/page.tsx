@@ -7,10 +7,12 @@ import { Button } from '@/components/shared/ui'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { AnimatedCube } from '@/components/landing/animated-cube'
 
 export default function RegisterPage() { 
   const [email, setEmail] = useState('')
-  const [fullName, setFullName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [organization, setOrganization] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('Data Analyst')
@@ -39,7 +41,7 @@ export default function RegisterPage() {
     const formData = new FormData()
     formData.append('email', email)
     formData.append('password', password)
-    formData.append('full_name', fullName)
+    formData.append('full_name', `${firstName} ${lastName}`.trim())
     formData.append('organization_name', organization)
     formData.append('role', role)
     if (profilePicture) formData.append('profile_picture', profilePicture)
@@ -82,19 +84,58 @@ export default function RegisterPage() {
 
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
-      <div className="relative hidden lg:block border-r border-border/40">
-        <Image src="/bg-auth.png" alt="Abstract Background" fill className="object-cover" priority />
-        <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-background/5" />
-        <div className="absolute inset-0 p-12 flex flex-col justify-between">
+      <div className="relative hidden lg:flex flex-col border-r border-border/40 overflow-hidden bg-gradient-to-br from-[#050a15] via-[#0a1229] to-[#050a15]">
+        {/* Subtle glowing orb behind the cube */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/15 blur-[120px] rounded-full pointer-events-none" />
+        
+        <div className="absolute inset-0 flex items-center justify-center opacity-60 pointer-events-none">
+          <div className="w-[500px] h-[500px]">
+            <AnimatedCube forceWhite={true} />
+          </div>
+        </div>
+        
+        {/* Subtle grid lines */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={`h-${i}`}
+              className="absolute h-px bg-white/10"
+              style={{ top: `${12.5 * (i + 1)}%`, left: 0, right: 0 }}
+            />
+          ))}
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={`v-${i}`}
+              className="absolute w-px bg-white/10"
+              style={{ left: `${8.33 * (i + 1)}%`, top: 0, bottom: 0 }}
+            />
+          ))}
+        </div>
+        
+        <div className="relative z-10 p-12 flex flex-col justify-between h-full">
           <div className="flex items-center gap-2">
             <svg width="36" height="36" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-primary drop-shadow-xl shrink-0">
-              <path d="M16 2L3 9.5V22.5L16 30L29 22.5V9.5L16 2Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
+              <path d="M16 2L3 9.5V22.5L16 30L29 22.5V9.5L16 2Z" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
               <path d="M3 9.5L16 17M29 9.5L16 17M16 30V17" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
               <circle cx="16" cy="17" r="3" fill="currentColor"/>
             </svg>
             <span className="font-extrabold tracking-tighter text-2xl ml-1">
-              <span className="text-foreground">Churn</span><span className="text-primary">Guard</span>
+              <span className="text-white">Churn</span><span className="text-primary">Guard</span>
             </span>
+          </div>
+
+          <div className="mt-auto pb-4">
+            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-white/80 backdrop-blur-md mb-3 shadow-xl">
+              <span className="flex size-1.5 rounded-full bg-primary mr-2 animate-pulse"></span>
+              Join the Network
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight text-white mb-2 drop-shadow-sm">
+              Stop guessing.<br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">Start retaining.</span>
+            </h1>
+            <p className="text-sm text-white/60 max-w-sm font-medium">
+              Create your intelligence workspace and discover the real drivers behind your customer churn.
+            </p>
           </div>
         </div>
       </div>
@@ -142,28 +183,27 @@ export default function RegisterPage() {
               </button>
             </div>
             
-            <label className="flex flex-col gap-2 text-sm font-medium">Full Name
-              <input required type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="rounded-xl border border-input bg-card px-3 py-3 outline-none focus:ring-2 focus:ring-ring" placeholder="John Doe" />
-            </label>
+            <div className="grid grid-cols-2 gap-4">
+              <label className="flex flex-col gap-2 text-sm font-medium">First name
+                <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="Alex" />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-medium">Last name
+                <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="Chen" />
+              </label>
+            </div>
+            
             <label className="flex flex-col gap-2 text-sm font-medium">Organization
-              <input required type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="rounded-xl border border-input bg-card px-3 py-3 outline-none focus:ring-2 focus:ring-ring" placeholder="Acme Corp" />
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium">Role
-              <select value={role} onChange={e => setRole(e.target.value)} className="rounded-xl border border-input bg-card px-3 py-3 outline-none focus:ring-2 focus:ring-ring">
-                <option value="Data Analyst">Data Analyst</option>
-                <option value="Viewer">Viewer</option>
-                <option value="Org Admin">Organization Admin</option>
-              </select>
+              <input required type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="Acme Corp" />
             </label>
             <label className="flex flex-col gap-2 text-sm font-medium">Email
-              <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="rounded-xl border border-input bg-card px-3 py-3 outline-none focus:ring-2 focus:ring-ring" placeholder="you@company.com" />
+              <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="you@company.com" />
             </label>
             <label className="flex flex-col gap-2 text-sm font-medium">Password
-              <input required minLength={6} type="password" value={password} onChange={e => setPassword(e.target.value)} className="rounded-xl border border-input bg-card px-3 py-3 outline-none focus:ring-2 focus:ring-ring" placeholder="••••••••" />
+              <input required minLength={4} type="password" value={password} onChange={e => setPassword(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="••••••••" />
             </label>
             {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
             
-            <Button type="submit" disabled={busy} className="mt-2">{busy ? 'Creating Account…' : 'Sign up'}<ArrowRight className="size-4" /></Button>
+            <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2">{busy ? 'Setting up…' : 'Create account'}<ArrowRight className="size-4 ml-1" /></Button>
           </form>
           
           <p className="mt-6 text-center text-sm text-muted-foreground">Already have an account? <Link href="/login" className="font-semibold text-primary hover:underline">Sign in</Link></p>

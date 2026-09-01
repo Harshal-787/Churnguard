@@ -68,6 +68,7 @@ export function AnimatedTetrahedron() {
     });
 
     const render = () => {
+      const isDark = document.documentElement.classList.contains("dark");
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
 
@@ -149,7 +150,8 @@ export function AnimatedTetrahedron() {
       // Draw points
       points.forEach((point) => {
         const alpha = 0.15 + (point.z + 1.5) * 0.25;
-        ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(alpha, 0.9)})`;
+        const color = isDark ? `rgba(255, 255, 255, ${Math.min(alpha, 0.9)})` : `rgba(0, 0, 0, ${Math.min(alpha, 0.9)})`;
+        ctx.fillStyle = color;
         ctx.fillText(point.char, point.x, point.y);
       });
 

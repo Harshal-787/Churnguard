@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, User, Bell, Palette, Shield, Key, Database, Download, CheckCircle2, Cpu } from 'lucide-react'
 import { Button } from './shared/ui'
 import { currentUser, api } from '@/lib/api'
+import { useTheme } from 'next-themes'
 
 interface SettingsModalProps {
   open: boolean
@@ -15,6 +16,7 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('general')
   const [savedMessage, setSavedMessage] = useState('')
   const user = currentUser()
+  const { theme, setTheme } = useTheme()
   
   // States for preferences (legitimate working functionality via localStorage)
   const [timeRange, setTimeRange] = useState('Last 30 Days')
@@ -23,6 +25,9 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
   const [models, setModels] = useState<any[]>([])
   const [activeModel, setActiveModel] = useState<string>('')
   const [isModelsLoading, setIsModelsLoading] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [isAuditLoading, setIsAuditLoading] = useState(false)
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -33,14 +38,31 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
       if (savedTimeRange) setTimeRange(savedTimeRange)
       if (savedStrictShap !== null) setStrictShap(savedStrictShap === 'true')
       if (savedExportFmt) setExportFormat(savedExportFmt)
+      if ('Notification' in window) setPushEnabled(Notification.permission === 'granted')
     }
   }, [open])
 
   useEffect(() => {
     if (activeTab === 'ml') {
       fetchModels()
+    } else if (activeTab === 'audit') {
+      fetchAuditLogs()
     }
   }, [activeTab])
+
+  const fetchAuditLogs = async () => {
+    try {
+      setIsAuditLoading(true)
+      const res = await api<any[]>('/organizations/admin/audit_logs')
+      if (res.status === 200 && Array.isArray(res.data)) {
+        setAuditLogs(res.data)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsAuditLoading(false)
+    }
+  }
 
   const fetchModels = async () => {
     try {
@@ -97,6 +119,9 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
     tabs.push({ id: 'preferences', label: 'Data Preferences', icon: Database })
     tabs.push({ id: 'export', label: 'Export Settings', icon: Download })
   }
+  if (['Org Admin', 'Super Admin'].includes(role)) {
+    tabs.push({ id: 'audit', label: 'Audit Logs', icon: Shield })
+  }
 
   if (['Org Admin', 'Super Admin'].includes(role)) {
     tabs.push({ id: 'security', label: 'Security & Access', icon: Shield })
@@ -107,6 +132,53 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
     localStorage.setItem(key, value)
     setSavedMessage('Settings saved successfully!')
     setTimeout(() => setSavedMessage(''), 2000)
+  }
+
+  const handleDownloadSample = async () => {
+    try {
+      setSavedMessage('Generating export...')
+      const token = sessionStorage.getItem('churnguard_token')
+      const format = exportFormat.toLowerCase()
+      
+      const res = await fetch(`http://localhost:8000/api/v1/analytics/export?format=${format}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (!res.ok) {
+        throw new Error('Export failed')
+      }
+      
+      const blob = await res.blob()
+      let ext = format
+      
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `churnguard_export.${ext}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      
+      setSavedMessage(`Export (${exportFormat}) downloaded!`)
+      setTimeout(() => setSavedMessage(''), 2000)
+    } catch (e) {
+      console.error(e)
+      setSavedMessage('Failed to download export.')
+      setTimeout(() => setSavedMessage(''), 2000)
+    }
+  }
+
+  const handleEnablePush = async () => {
+    if (!('Notification' in window)) return alert('Push notifications not supported.')
+    const permission = await Notification.requestPermission()
+    if (permission === 'granted') {
+      setPushEnabled(true)
+      setSavedMessage('Push notifications enabled!')
+      setTimeout(() => setSavedMessage(''), 2000)
+    }
   }
 
   return (
@@ -204,17 +276,26 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
                     <p className="text-sm text-muted-foreground mt-1">Customize how the application looks on your device.</p>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
-                    <button className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-primary bg-primary/5 p-5 shadow-sm transition-all hover:bg-primary/10">
+                    <button 
+                      onClick={() => setTheme('dark')}
+                      className={`group flex flex-col items-center gap-3 rounded-2xl border-2 p-5 shadow-sm transition-all hover:bg-primary/5 ${theme === 'dark' ? 'border-primary bg-primary/5' : 'border-border/50 bg-card/50'}`}
+                    >
                       <div className="size-10 rounded-full bg-slate-950 border border-slate-800 shadow-md group-hover:scale-110 transition-transform" />
                       <span className="text-sm font-medium text-foreground">Dark Mode</span>
                     </button>
-                    <button className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-transparent bg-muted/50 p-5 hover:bg-muted transition-all">
+                    <button 
+                      onClick={() => setTheme('light')}
+                      className={`group flex flex-col items-center gap-3 rounded-2xl border-2 p-5 shadow-sm transition-all hover:bg-primary/5 ${theme === 'light' ? 'border-primary bg-primary/5' : 'border-border/50 bg-card/50'}`}
+                    >
                       <div className="size-10 rounded-full bg-white border border-slate-200 shadow-sm group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-medium text-muted-foreground">Light Mode</span>
+                      <span className="text-sm font-medium text-foreground">Light Mode</span>
                     </button>
-                    <button className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-transparent bg-muted/50 p-5 hover:bg-muted transition-all">
+                    <button 
+                      onClick={() => setTheme('system')}
+                      className={`group flex flex-col items-center gap-3 rounded-2xl border-2 p-5 shadow-sm transition-all hover:bg-primary/5 ${theme === 'system' ? 'border-primary bg-primary/5' : 'border-border/50 bg-card/50'}`}
+                    >
                       <div className="size-10 rounded-full bg-gradient-to-tr from-slate-900 to-white border shadow-sm group-hover:scale-110 transition-transform" />
-                      <span className="text-sm font-medium text-muted-foreground">System Default</span>
+                      <span className="text-sm font-medium text-foreground">System Default</span>
                     </button>
                   </div>
                 </div>
@@ -299,8 +380,8 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
                       </select>
                     </div>
                   </div>
-                  <Button variant="outline" className="w-full rounded-xl h-11 border-dashed">
-                    <Download className="mr-2 size-4" /> Download Example Report ({exportFormat})
+                  <Button onClick={handleDownloadSample} variant="outline" className="w-full rounded-xl h-11 border-dashed">
+                    <Download className="mr-2 size-4" /> Download Data Export ({exportFormat})
                   </Button>
                 </div>
               )}
@@ -403,7 +484,16 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
                   </div>
                   <h3 className="text-lg font-medium">Notification Preferences</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mt-2">Configure how you want to receive alerts about churn risks and system events.</p>
-                  <Button variant="outline" className="mt-6 rounded-xl shadow-sm">Enable Browser Push</Button>
+                  <Button 
+                    variant={pushEnabled ? "default" : "outline"} 
+                    className="mt-6 rounded-xl shadow-sm"
+                    onClick={handleEnablePush}
+                    disabled={pushEnabled}
+                  >
+                    {pushEnabled ? (
+                      <><CheckCircle2 className="mr-2 size-4" /> Push Notifications Enabled</>
+                    ) : "Enable Browser Push"}
+                  </Button>
                 </div>
               )}
               

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BarChart3, CheckCircle2, RefreshCw, ShieldAlert, TrendingDown, Users, ArrowRight, Database } from 'lucide-react'
+import { BarChart3, CheckCircle2, RefreshCw, ShieldAlert, TrendingDown, Users, ArrowRight, Database, Sparkles, ClipboardList, Send, Loader2, X } from 'lucide-react'
 import { api, currentUser, displayValue, listFrom } from '@/lib/api'
 import { PageHeader } from '@/components/app-shell'
 import { Button, Card, Metric, State } from '@/components/shared/ui'
@@ -9,14 +9,24 @@ import Link from 'next/link'
 
 type RecordData = Record<string, any>
 
-import { BarChart, Bar, ResponsiveContainer, Tooltip, Cell, XAxis } from 'recharts'
+import { BarChart, Bar, ResponsiveContainer, Tooltip, Cell, XAxis, ComposedChart, Line } from 'recharts'
+import { toast } from 'sonner'
 
-function MiniBars({ values }: { values: number[] }) { 
-  const data = values.map((v, i) => ({ name: `Month ${i + 1}`, churn: v }))
+function MiniBars({ values, forecast }: { values: number[], forecast?: number[] }) { 
+  const data = values.map((v, i) => ({ name: `M${i + 1}`, churn: v, forecast: null }))
+  if (forecast && forecast.length) {
+    const lastM = values.length
+    forecast.forEach((v, i) => data.push({ name: `M${lastM + i + 1}`, churn: null as any, forecast: v }))
+    // Connect the line from the last actual point
+    if (data.length > forecast.length) {
+      data[lastM - 1].forecast = data[lastM - 1].churn
+    }
+  }
+
   return (
     <div className="h-40 w-full mt-auto pt-4">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="colorChurn" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.9}/>
@@ -30,8 +40,11 @@ function MiniBars({ values }: { values: number[] }) {
             itemStyle={{ color: 'var(--primary)', fontWeight: 600 }} 
             labelStyle={{ color: 'var(--muted-foreground)', fontSize: '12px' }}
           />
-          <Bar dataKey="churn" fill="url(#colorChurn)" radius={[4, 4, 0, 0]} />
-        </BarChart>
+          <Bar dataKey="churn" fill="url(#colorChurn)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+          {forecast && forecast.length > 0 && (
+            <Line type="monotone" dataKey="forecast" stroke="var(--destructive)" strokeDasharray="4 4" strokeWidth={2} dot={{r:3}} activeDot={{r:5}} />
+          )}
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   )
@@ -44,6 +57,12 @@ export default function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isReanalyzing, setIsReanalyzing] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
+  
+  const [strategyData, setStrategyData] = useState<any>(null)
+  const [isStrategyLoading, setIsStrategyLoading] = useState(false)
+  const [strategyModalOpen, setStrategyModalOpen] = useState(false)
+  const [strategyCustomer, setStrategyCustomer] = useState<any>(null)
+
   const user = currentUser()
 
   // Role booleans
@@ -75,9 +94,47 @@ export default function DashboardPage() {
   }
   
   useEffect(() => { load() }, [])
+
+  const fetchStrategy = async (c: any) => {
+    setStrategyCustomer(c)
+    setStrategyModalOpen(true)
+    setIsStrategyLoading(true)
+    setStrategyData(null)
+    const r = await api(`/predict/strategy/${c.id || c.customer_id}`, { method: 'POST' })
+    if (r.data) {
+      setStrategyData(r.data)
+    } else {
+      toast.error(r.error || 'Failed to generate AI Strategy')
+      setStrategyModalOpen(false)
+    }
+    setIsStrategyLoading(false)
+  }
+
+  const dispatchToJira = async (c: any) => {
+    const id = toast.loading('Creating Jira ticket...')
+    try {
+      const r = await api(`/integrations/jira/${c.id || c.customer_id}`, { method: 'POST' })
+      if (r.error) throw new Error(r.error)
+      toast.success(`${r.data?.message}: ${r.data?.ticket_id}`, { id })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create Jira ticket', { id })
+    }
+  }
+
+  const dispatchToHubspot = async (c: any) => {
+    const id = toast.loading('Triggering HubSpot workflow...')
+    try {
+      const r = await api(`/integrations/hubspot/${c.id || c.customer_id}`, { method: 'POST' })
+      if (r.error) throw new Error(r.error)
+      toast.success(`${r.data?.message}: ${r.data?.workflow_id}`, { id })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to trigger HubSpot workflow', { id })
+    }
+  }
   
   const metrics = data && (data.metrics || data)
   const trend = listFrom<number>(data?.monthly_churn || data?.churn_trend).map(Number).filter(Number.isFinite)
+  const forecast = listFrom<number>(data?.forecast_churn).map(Number).filter(Number.isFinite)
   
   const firstName = user?.full_name?.split(' ')[0] || user?.name?.split(' ')[0] || 'User'
 
@@ -94,23 +151,52 @@ export default function DashboardPage() {
       {listFrom<RecordData>(data?.priority_customers).length ? (
         <div className="flex flex-col gap-3 flex-1 overflow-hidden">
           {listFrom<RecordData>(data?.priority_customers).slice(0,5).map((c,i)=> (
-            <Link key={i} href={`/customers/${c.id}`} className="flex items-center justify-between rounded-xl border border-border p-3 text-left hover:border-primary/50 hover:bg-primary/5 transition-all group">
-              <div className="flex flex-col gap-1 overflow-hidden">
+            <div key={i} className="flex items-center justify-between rounded-xl border border-border p-3 text-left hover:border-primary/50 hover:bg-primary/5 transition-all group">
+              <Link href={`/customers/${c.id}`} className="flex flex-col gap-1 overflow-hidden flex-1">
                 <span className="truncate text-sm font-semibold">{c.name || c.email || `Customer ${c.id}`}</span>
                 <span className="text-[11px] font-mono text-muted-foreground">Bal: ${displayValue(c.balance || c.avg_balance)}</span>
-              </div>
-              <div className="flex items-center gap-3">
+              </Link>
+              <div className="flex items-center gap-4">
                 <div className="flex flex-col items-end">
                   <span className="text-xs font-semibold text-destructive">
                     {c.score || c.risk_score || c.churn_probability ? ((c.score || c.risk_score || c.churn_probability) * 100).toFixed(1) + '%' : '—'}
                   </span>
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk</span>
                 </div>
-                <div className="grid size-7 place-items-center rounded-full bg-muted group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                  <ArrowRight className="size-3.5" />
+                
+                {/* CRM Actions */}
+                <div className="flex items-center gap-2 mt-2 sm:mt-0 relative z-10">
+                  <button 
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-500/10 px-2.5 py-1.5 text-xs font-semibold text-purple-600 dark:text-purple-400 transition-colors hover:bg-purple-500/20 cursor-pointer" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); fetchStrategy(c); }}
+                  >
+                    <Sparkles className="size-3.5" /> 
+                    AI Strategy
+                  </button>
+                  {isAnalyst && (
+                    <>
+                      <button 
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/20 bg-blue-500/10 px-2.5 py-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-500/20 cursor-pointer" 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); dispatchToJira(c); }}
+                      >
+                        <ClipboardList className="size-3.5" /> 
+                        Jira
+                      </button>
+                      <button 
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-orange-500/20 bg-orange-500/10 px-2.5 py-1.5 text-xs font-semibold text-orange-600 dark:text-orange-400 transition-colors hover:bg-orange-500/20 cursor-pointer" 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); dispatchToHubspot(c); }}
+                      >
+                        <Send className="size-3.5" /> 
+                        HubSpot
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       ) : (
@@ -157,12 +243,12 @@ export default function DashboardPage() {
     <Card className="p-6 h-full">
       <div className="mb-8 flex items-start justify-between">
         <div>
-          <h2 className="font-semibold">Churn movement</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Monthly signal returned by your API</p>
+          <h2 className="font-semibold">Churn movement & forecast</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Historical signal vs predictive projection</p>
         </div>
         <BarChart3 className="size-5 text-muted-foreground" />
       </div>
-      {error ? <State error={error} onRetry={load} /> : trend.length ? <MiniBars values={trend} /> : <State empty="Connect the analytics endpoint to see churn movement." />}
+      {error ? <State error={error} onRetry={load} /> : trend.length ? <MiniBars values={trend} forecast={forecast} /> : <State empty="Connect the analytics endpoint to see churn movement." />}
     </Card>
   )
 
@@ -267,6 +353,56 @@ export default function DashboardPage() {
             <OrgTeamWidget />
           </div>
         </>
+      )}
+
+      {strategyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl bg-background p-6 shadow-xl border border-border">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-5 text-primary" /> 
+                <h2 className="text-xl font-bold tracking-tight">AI Strategy: Customer {strategyCustomer?.name || strategyCustomer?.id || 'Customer'}</h2>
+              </div>
+              <button 
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setStrategyModalOpen(false); }} 
+                className="rounded-full p-2 hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            
+            {isStrategyLoading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="size-8 animate-spin mb-4 text-primary" />
+                <p className="text-muted-foreground animate-pulse">Consulting LLM models...</p>
+              </div>
+            ) : strategyData ? (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-primary/10 p-5 border border-primary/20">
+                  <h3 className="font-semibold text-foreground mb-2">Recommended Action Plan</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{strategyData.action_plan || strategyData.strategy}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-xl bg-muted/30 p-4 border border-border/50">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Key Risk Factor</span>
+                    <p className="mt-1.5 font-medium text-sm">{strategyData.risk_factor || 'Unknown'}</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/30 p-4 border border-border/50">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Retention Probability</span>
+                    <p className="mt-1.5 font-medium text-sm">
+                      {strategyData.retention_prob ? displayValue(strategyData.retention_prob, '%') : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-red-500 font-medium">
+                Failed to load AI strategy from the server.
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </>
   )

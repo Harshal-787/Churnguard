@@ -42,9 +42,15 @@ export function FooterSection() {
           <div className="grid grid-cols-2 md:grid-cols-6 gap-12 lg:gap-8">
             {/* Brand Column */}
             <div className="col-span-2">
-              <a href="#" className="inline-flex items-center gap-2 mb-6">
-                <span className="text-2xl font-display">ChurnGuard</span>
-                <span className="text-xs text-muted-foreground font-mono">TM</span>
+              <a href="#" className="inline-flex items-center mb-6 group">
+                <svg width="36" height="36" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-foreground drop-shadow-sm shrink-0">
+                  <path d="M16 2L3 9.5V22.5L16 30L29 22.5V9.5L16 2Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
+                  <path d="M3 9.5L16 17M29 9.5L16 17M16 30V17" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/>
+                  <circle cx="16" cy="17" r="3" fill="currentColor"/>
+                </svg>
+                <span className="font-display tracking-tight text-2xl ml-1.5 pt-0.5">
+                  <span className="text-foreground">Churn</span><span className="text-foreground">Guard</span>
+                </span>
               </a>
 
               <p className="text-muted-foreground leading-relaxed mb-8 max-w-xs">

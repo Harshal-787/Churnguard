@@ -15,6 +15,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv
+load_dotenv(ROOT / ".env")
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -23,7 +26,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 
-from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications, models
+from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications, models, integrations
 from app.database import engine, Base
 
 # We rely on Alembic for migrations now, but we can ensure tables exist
@@ -61,7 +64,7 @@ app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytic
 app.include_router(organizations.router, prefix="/api/v1/organizations", tags=["organizations"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
 app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
-
+app.include_router(integrations.router, prefix="/api/v1/integrations", tags=["integrations"])
 @app.get("/health")
 @limiter.limit("10/minute")
 def health(request: Request):

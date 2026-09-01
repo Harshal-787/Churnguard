@@ -92,7 +92,7 @@ export default function CustomerDetailPage() {
                     />
                     <Bar dataKey="value" radius={4}>
                       {shapFeatures.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#ef4444' : '#10b981'} />
+                        <Cell key={`cell-${index}`} fill={entry.value > 0 ? 'var(--destructive)' : 'var(--chart-2)'} />
                       ))}
                     </Bar>
                   </BarChart>

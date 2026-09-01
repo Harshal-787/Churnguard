@@ -92,6 +92,7 @@ def get_dashboard_stats(
             "model_confidence": model_confidence,
         },
         "monthly_churn": [42, 38, 55, 48, 40, 35] if total_customers > 0 else [],
+        "forecast_churn": [35, 31, 26] if total_customers > 0 else [],
         "priority_customers": top_at_risk,
         "risk_distribution": [
             { "name": 'Safe', "value": safe_count },
