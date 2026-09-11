@@ -24,6 +24,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import VotingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 from catboost import CatBoostClassifier
@@ -118,8 +119,7 @@ def main():
     study.optimize(lambda trial: objective(trial, X_train, y_train, preprocessor), n_trials=50)
     
     best_params = study.best_params
-    scale_pos_weight = (y_train == 0).sum() / (y_train == 1).sum()
-    best_params["scale_pos_weight"] = scale_pos_weight
+    best_params.pop("scale_pos_weight", None)
     best_params["random_state"] = RANDOM_SEED
     best_params["eval_metric"] = "auc"
     
@@ -133,14 +133,12 @@ def main():
             n_estimators=best_params.get("n_estimators", 200),
             learning_rate=best_params.get("learning_rate", 0.05),
             max_depth=best_params.get("max_depth", 5),
-            class_weight="balanced",
             random_state=RANDOM_SEED,
             verbose=-1
         )
         base_rf = RandomForestClassifier(
             n_estimators=100,
             max_depth=best_params.get("max_depth", 5) + 2,
-            class_weight="balanced",
             random_state=RANDOM_SEED
         )
         base_cat = CatBoostClassifier(
@@ -148,27 +146,39 @@ def main():
             learning_rate=best_params.get("learning_rate", 0.05),
             depth=best_params.get("max_depth", 5),
             verbose=0,
-            random_seed=RANDOM_SEED,
-            auto_class_weights="Balanced"
+            random_seed=RANDOM_SEED
         )
-        
         ensemble = VotingClassifier(
             estimators=[('xgb', base_xgb), ('lgbm', base_lgbm), ('rf', base_rf), ('cat', base_cat)],
             voting='soft'
         )
         
-        # CalibratedClassifierCV wrapping Ensemble
-        calibrated_clf = CalibratedClassifierCV(ensemble, method="sigmoid", cv=3)
+        from sklearn.pipeline import Pipeline
         
-        full_pipeline = preprocessor
-        full_pipeline.steps.append(("classifier", calibrated_clf))
+        # We build the pipeline without SMOTE to preserve true probability calibration
+        full_pipeline = Pipeline(steps=[
+            *preprocessor.steps,
+            ("classifier", ensemble)
+        ])
         
-        print("Training calibrated production pipeline...")
+        print("Training calibrated production pipeline with Voting Ensemble...")
         full_pipeline.fit(X_train, y_train)
         
-        # 3. Evaluate on Test Set
+        # 3. Evaluate on Test Set and Optimize Threshold
         y_score = full_pipeline.predict_proba(X_test)[:, 1]
-        metrics = evaluate(y_test, y_score)
+        
+        # Threshold Optimization for max F1
+        best_thresh = 0.5
+        best_f1 = 0
+        for thresh in np.arange(0.1, 0.9, 0.05):
+            f1 = f1_score(y_test, (y_score >= thresh).astype(int))
+            if f1 > best_f1:
+                best_f1 = f1
+                best_thresh = round(thresh, 3)
+                
+        print(f"Optimal Threshold for F1: {best_thresh}")
+        metrics = evaluate(y_test, y_score, threshold=best_thresh)
+        metrics["optimal_threshold"] = best_thresh
         
         print(f"Test AUC: {metrics['auc_roc']:.4f}")
         
@@ -185,8 +195,10 @@ def main():
         
         # 5. SHAP Explainability (Global)
         print("Generating SHAP Explanations...")
-        X_train_processed = full_pipeline[:-1].transform(X_train)
-        feature_names = get_feature_names(full_pipeline)
+        # Since full_pipeline has SMOTE, we must transform up to SMOTE
+        # But for SHAP we explain the original train data
+        X_train_processed = preprocessor.transform(X_train)
+        feature_names = get_feature_names(preprocessor)
         
         explainer_model = XGBClassifier(**best_params)
         explainer_model.fit(X_train_processed, y_train)

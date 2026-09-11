@@ -9,6 +9,9 @@ shap==0.52.0
 joblib==1.5.3
 pydantic-settings==2.2.1
 email-validator
+imbalanced-learn
+catboost
+lightgbm
 
 # Database & Migration
 sqlalchemy>=2.0.32

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
-from ..models import User, Customer, PredictionHistory, AuditLog
+from ..models import User, Customer, PredictionHistory, AuditLog, Organization, ApiKey
 from ..deps import get_db, get_current_user, require_role
-from ..schemas import RoleEnum
+from ..schemas import RoleEnum, OrgSettings, ApiKeyCreate, ApiKeyResponse, ApiKeyCreateResponse
+import secrets
+import hashlib
 
 router = APIRouter()
 
@@ -170,3 +172,54 @@ def get_audit_logs(
         }
         for log in logs
     ]
+
+@router.get("/me/settings", response_model=OrgSettings, dependencies=[Depends(require_role([RoleEnum.SUPER_ADMIN, RoleEnum.ORG_ADMIN]))])
+def get_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    org = db.query(Organization).filter(Organization.id == current_user.organization_id).first()
+    return org
+
+@router.put("/me/settings", response_model=OrgSettings, dependencies=[Depends(require_role([RoleEnum.SUPER_ADMIN, RoleEnum.ORG_ADMIN]))])
+def update_settings(settings: OrgSettings, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    org = db.query(Organization).filter(Organization.id == current_user.organization_id).first()
+    org.require_2fa = settings.require_2fa
+    org.session_timeout = settings.session_timeout
+    db.commit()
+    log_audit(db, current_user, "Updated Security Settings", "/api/v1/organizations/me/settings", request)
+    return org
+
+@router.post("/me/force_rotate_passwords", dependencies=[Depends(require_role([RoleEnum.SUPER_ADMIN, RoleEnum.ORG_ADMIN]))])
+def force_rotate_passwords(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    log_audit(db, current_user, "Forced Password Rotation for all users", "/api/v1/organizations/me/force_rotate_passwords", request)
+    return {"message": "All users will be forced to rotate passwords on next login"}
+
+@router.get("/me/api_keys", response_model=list[ApiKeyResponse], dependencies=[Depends(require_role([RoleEnum.SUPER_ADMIN, RoleEnum.ORG_ADMIN]))])
+def get_api_keys(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    keys = db.query(ApiKey).filter(ApiKey.organization_id == current_user.organization_id).all()
+    return keys
+
+@router.post("/me/api_keys", response_model=ApiKeyCreateResponse, dependencies=[Depends(require_role([RoleEnum.SUPER_ADMIN, RoleEnum.ORG_ADMIN]))])
+def create_api_key(key_data: ApiKeyCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    raw_key = "cg_" + secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    preview = raw_key[:7] + "*" * 20 + raw_key[-4:]
+    
+    new_key = ApiKey(
+        organization_id=current_user.organization_id,
+        name=key_data.name,
+        key_hash=key_hash,
+        preview=preview
+    )
+    db.add(new_key)
+    db.commit()
+    db.refresh(new_key)
+    
+    log_audit(db, current_user, f"Generated API Key: {key_data.name}", "/api/v1/organizations/me/api_keys", request)
+    
+    return {
+        "id": new_key.id,
+        "name": new_key.name,
+        "preview": new_key.preview,
+        "created_at": new_key.created_at,
+        "key": raw_key
+    }
+

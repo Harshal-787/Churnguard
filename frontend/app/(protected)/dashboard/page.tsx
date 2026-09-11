@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { BarChart3, CheckCircle2, RefreshCw, ShieldAlert, TrendingDown, Users, ArrowRight, Database, Sparkles, ClipboardList, Send, Loader2, X } from 'lucide-react'
 import { api, currentUser, displayValue, listFrom } from '@/lib/api'
 import { PageHeader } from '@/components/app-shell'
-import { Button, Card, Metric, State } from '@/components/shared/ui'
+import { Button, Card, Metric, State, Skeleton } from '@/components/shared/ui'
 import Link from 'next/link'
 
 type RecordData = Record<string, any>
@@ -13,7 +13,7 @@ import { BarChart, Bar, ResponsiveContainer, Tooltip, Cell, XAxis, ComposedChart
 import { toast } from 'sonner'
 
 function MiniBars({ values, forecast }: { values: number[], forecast?: number[] }) { 
-  const data = values.map((v, i) => ({ name: `M${i + 1}`, churn: v, forecast: null }))
+  const data = values.map((v, i) => ({ name: `M${i + 1}`, churn: v as number | null, forecast: null as number | null }))
   if (forecast && forecast.length) {
     const lastM = values.length
     forecast.forEach((v, i) => data.push({ name: `M${lastM + i + 1}`, churn: null as any, forecast: v }))
@@ -86,14 +86,33 @@ export default function DashboardPage() {
   const reanalyze = async () => {
     setIsReanalyzing(true)
     await api('/predict/batch/reanalyze', { method: 'POST' })
-    await load() // refresh dashboard after reanalyzing
-    setIsReanalyzing(false)
-    setSuccessMsg('Reanalysis complete!')
-    window.dispatchEvent(new Event('cg_stats_updated'))
-    setTimeout(() => setSuccessMsg(''), 3000)
+    // We don't load() here, we wait for the WebSocket event!
+    toast.info("Reanalysis started in background. Dashboard will update automatically.")
   }
   
-  useEffect(() => { load() }, [])
+  useEffect(() => { 
+    load() 
+    
+    // Connect WebSocket
+    const orgId = currentUser()?.organization_id
+    if (!orgId) return
+    
+    const ws = new WebSocket(`ws://localhost:8000/api/v1/ws/${orgId}`)
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type === 'reanalyze_complete') {
+          toast.success(`Reanalysis complete! Scored ${msg.count} customers.`)
+          setIsReanalyzing(false)
+          load()
+        }
+      } catch (e) {}
+    }
+    
+    return () => {
+      ws.close()
+    }
+  }, [])
 
   const fetchStrategy = async (c: any) => {
     setStrategyCustomer(c)
@@ -115,7 +134,8 @@ export default function DashboardPage() {
     try {
       const r = await api(`/integrations/jira/${c.id || c.customer_id}`, { method: 'POST' })
       if (r.error) throw new Error(r.error)
-      toast.success(`${r.data?.message}: ${r.data?.ticket_id}`, { id })
+      const responseData = r.data as any
+      toast.success(`${responseData?.message}: ${responseData?.ticket_id}`, { id })
     } catch (err: any) {
       toast.error(err.message || 'Failed to create Jira ticket', { id })
     }
@@ -126,7 +146,8 @@ export default function DashboardPage() {
     try {
       const r = await api(`/integrations/hubspot/${c.id || c.customer_id}`, { method: 'POST' })
       if (r.error) throw new Error(r.error)
-      toast.success(`${r.data?.message}: ${r.data?.workflow_id}`, { id })
+      const responseData = r.data as any
+      toast.success(`${responseData?.message}: ${responseData?.workflow_id}`, { id })
     } catch (err: any) {
       toast.error(err.message || 'Failed to trigger HubSpot workflow', { id })
     }
@@ -148,18 +169,24 @@ export default function DashboardPage() {
         </div>
         <ShieldAlert className="size-5 text-destructive" />
       </div>
-      {listFrom<RecordData>(data?.priority_customers).length ? (
+      {!data ? (
         <div className="flex flex-col gap-3 flex-1 overflow-hidden">
-          {listFrom<RecordData>(data?.priority_customers).slice(0,5).map((c,i)=> (
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-[76px] w-full rounded-xl" />
+          ))}
+        </div>
+      ) : listFrom<RecordData>(data?.priority_customers).length ? (
+        <div className="flex flex-col gap-3 flex-1 overflow-auto max-h-[400px] pr-2">
+          {listFrom<RecordData>(data?.priority_customers).map((c,i)=> (
             <div key={i} className="flex items-center justify-between rounded-xl border border-border p-3 text-left hover:border-primary/50 hover:bg-primary/5 transition-all group">
               <Link href={`/customers/${c.id}`} className="flex flex-col gap-1 overflow-hidden flex-1">
                 <span className="truncate text-sm font-semibold">{c.name || c.email || `Customer ${c.id}`}</span>
-                <span className="text-[11px] font-mono text-muted-foreground">Bal: ${displayValue(c.balance || c.avg_balance)}</span>
+                <span className="text-[11px] font-mono text-muted-foreground">Bal: ${displayValue(c.balance ?? c.avg_balance)}</span>
               </Link>
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-end">
                   <span className="text-xs font-semibold text-destructive">
-                    {c.score || c.risk_score || c.churn_probability ? ((c.score || c.risk_score || c.churn_probability) * 100).toFixed(1) + '%' : '—'}
+                    {(c.score ?? c.risk_score ?? c.churn_probability) !== undefined && (c.score ?? c.risk_score ?? c.churn_probability) !== null ? ((c.score ?? c.risk_score ?? c.churn_probability) * 100).toFixed(1) + '%' : '—'}
                   </span>
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Risk</span>
                 </div>
@@ -215,7 +242,13 @@ export default function DashboardPage() {
         </div>
         <Users className="size-5 text-muted-foreground" />
       </div>
-      {team.length ? (
+      {!data ? (
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : team.length ? (
         <div className="flex flex-col gap-3">
           {team.map((member: any) => (
             <div key={member.id} className="flex items-center gap-3 rounded-xl border border-border p-3">
@@ -248,7 +281,15 @@ export default function DashboardPage() {
         </div>
         <BarChart3 className="size-5 text-muted-foreground" />
       </div>
-      {error ? <State error={error} onRetry={load} /> : trend.length ? <MiniBars values={trend} forecast={forecast} /> : <State empty="Connect the analytics endpoint to see churn movement." />}
+      {!data ? (
+        <Skeleton className="h-40 w-full rounded-lg mt-auto" />
+      ) : error ? (
+        <State error={error} onRetry={load} /> 
+      ) : trend.length ? (
+        <MiniBars values={trend} forecast={forecast} /> 
+      ) : (
+        <State empty="Connect the analytics endpoint to see churn movement." />
+      )}
     </Card>
   )
 
@@ -302,9 +343,9 @@ export default function DashboardPage() {
       {!isAnalyst && (
         <>
           <div className="grid gap-4 sm:grid-cols-3 mb-6">
-            <Metric label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
-            <Metric label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
-            <Metric label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
+            <Metric isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
+            <Metric isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
+            <Metric isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
           </div>
           <div className="grid gap-6 lg:grid-cols-2 items-stretch">
             <PriorityQueueWidget />
@@ -321,10 +362,10 @@ export default function DashboardPage() {
       {isAnalyst && !isOrgAdmin && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-            <Metric label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
-            <Metric label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
-            <Metric label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
-            <Metric label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
+            <Metric isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
+            <Metric isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
+            <Metric isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
+            <Metric isLoading={!data} label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
           </div>
           <div className="grid gap-6 xl:grid-cols-[1fr_.7fr_.7fr] items-stretch">
             <ChurnMovementWidget />
@@ -342,10 +383,10 @@ export default function DashboardPage() {
       {isOrgAdmin && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-            <Metric label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
-            <Metric label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
-            <Metric label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
-            <Metric label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
+            <Metric isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
+            <Metric isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
+            <Metric isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
+            <Metric isLoading={!data} label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
           </div>
           <div className="grid gap-6 xl:grid-cols-[1fr_.7fr_.7fr] items-stretch">
             <ChurnMovementWidget />

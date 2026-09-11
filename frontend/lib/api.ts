@@ -19,7 +19,9 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<A
     if (!response.ok) {
       if (response.status === 401 && typeof window !== 'undefined') {
         clearSession()
-        window.location.href = '/login'
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login'
+        }
       }
       return { error: typeof body === 'string' ? body : body?.detail || body?.message || 'Request failed', status: response.status }
     }

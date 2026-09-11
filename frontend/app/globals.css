@@ -167,6 +167,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  [cmdk-overlay] {
+    @apply fixed inset-0 z-40 bg-background/50 backdrop-blur-sm;
+  }
 }
 
 @layer utilities {

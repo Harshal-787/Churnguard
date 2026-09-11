@@ -11,6 +11,8 @@ import { AnimatedCube } from '@/components/landing/animated-cube'
 export default function LoginPage() { 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [otp, setOtp] = useState('')
+  const [requires2FA, setRequires2FA] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const router = useRouter()
@@ -37,9 +39,37 @@ export default function LoginPage() {
     setBusy(false)
     if (result.error) return setError(result.error)
     
+    if (result.data?.requires_2fa) {
+      setRequires2FA(true)
+      return
+    }
+    
     const token = result.data?.access_token || result.data?.token
     if (token) {
       // Fetch the full user profile including role
+      const meResult = await api<any>('/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      saveSession(token, meResult.data || result.data)
+      router.push('/dashboard')
+    }
+  }
+
+  const submitOTP = async (e: FormEvent) => { 
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    
+    const result = await api<any>('/auth/verify-2fa', { 
+      method: 'POST', 
+      body: JSON.stringify({ email, otp })
+    })
+    
+    setBusy(false)
+    if (result.error) return setError(result.error)
+    
+    const token = result.data?.access_token || result.data?.token
+    if (token) {
       const meResult = await api<any>('/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -121,23 +151,34 @@ export default function LoginPage() {
               <span className="text-foreground">Churn</span><span className="text-primary">Guard</span>
             </span>
           </div>
-          <p className="mb-3 text-sm font-semibold text-primary">Welcome back</p>
-          <h2 className="text-3xl font-semibold tracking-tight">Sign in to your workspace</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">Continue to your customer intelligence workspace.</p>
+          <p className="mb-3 text-sm font-semibold text-primary">{requires2FA ? 'Two-Factor Authentication' : 'Welcome back'}</p>
+          <h2 className="text-3xl font-semibold tracking-tight">{requires2FA ? 'Enter your code' : 'Sign in to your workspace'}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{requires2FA ? `We sent a 6-digit code to ${email}.` : 'Continue to your customer intelligence workspace.'}</p>
           
-          <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
-            <label className="flex flex-col gap-2 text-sm font-medium">Email
-              <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="you@company.com" />
-            </label>
-            <label className="flex flex-col gap-2 text-sm font-medium">Password
-              <input required minLength={4} type="password" value={password} onChange={e => setPassword(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="••••••••" />
-            </label>
-            {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-            
-            <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2">{busy ? 'Connecting…' : 'Sign in'}<ArrowRight className="size-4 ml-1" /></Button>
-          </form>
+          {requires2FA ? (
+            <form onSubmit={submitOTP} className="mt-8 flex flex-col gap-5">
+              <label className="flex flex-col gap-2 text-sm font-medium">Authentication Code
+                <input required minLength={6} maxLength={6} type="text" value={otp} onChange={e => setOtp(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm text-center tracking-[0.5em] font-mono text-lg" placeholder="••••••" />
+              </label>
+              {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+              <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2">{busy ? 'Verifying…' : 'Verify Code'}<ArrowRight className="size-4 ml-1" /></Button>
+              <button type="button" onClick={() => { setRequires2FA(false); setOtp(''); setError(''); }} className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-2">Back to login</button>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
+              <label className="flex flex-col gap-2 text-sm font-medium">Email
+                <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="you@company.com" />
+              </label>
+              <label className="flex flex-col gap-2 text-sm font-medium">Password
+                <input required minLength={4} type="password" value={password} onChange={e => setPassword(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="••••••••" />
+              </label>
+              {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+              
+              <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2">{busy ? 'Connecting…' : 'Sign in'}<ArrowRight className="size-4 ml-1" /></Button>
+            </form>
+          )}
           
-          <p className="mt-6 text-center text-sm text-muted-foreground">New to ChurnGuard? <Link href="/register" className="font-semibold text-primary hover:underline">Create an account</Link></p>
+          {!requires2FA && <p className="mt-6 text-center text-sm text-muted-foreground">New to ChurnGuard? <Link href="/register" className="font-semibold text-primary hover:underline">Create an account</Link></p>}
           <div className="mt-12 flex items-center justify-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" />Your credentials stay protected</div>
         </div>
       </div>

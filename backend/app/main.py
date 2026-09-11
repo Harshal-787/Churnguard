@@ -26,7 +26,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 
-from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications, models, integrations
+from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications, models, integrations, search, ws
 from app.database import engine, Base
 
 # We rely on Alembic for migrations now, but we can ensure tables exist
@@ -62,9 +62,12 @@ app.include_router(customers.router, prefix="/api/v1/customers", tags=["customer
 app.include_router(performance.router, prefix="/api/v1/performance", tags=["performance"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
 app.include_router(organizations.router, prefix="/api/v1/organizations", tags=["organizations"])
+app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
 app.include_router(models.router, prefix="/api/v1/models", tags=["models"])
 app.include_router(integrations.router, prefix="/api/v1/integrations", tags=["integrations"])
+app.include_router(ws.router, tags=["websockets"])
+
 @app.get("/health")
 @limiter.limit("10/minute")
 def health(request: Request):

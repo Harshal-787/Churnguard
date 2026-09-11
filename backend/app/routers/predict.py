@@ -38,8 +38,8 @@ class BatchPredictionRequest(BaseModel):
     customers: list[CustomerRecord]
 
 def _risk_tier(p: float) -> str:
-    if p >= 0.6: return "high"
-    if p >= 0.3: return "medium"
+    if p >= 0.3: return "high"
+    if p >= 0.15: return "medium"
     return "low"
 
 router = APIRouter()
@@ -364,20 +364,16 @@ def test_reanalyze(db: Session = Depends(get_db)):
         import traceback
         return {"error": traceback.format_exc()}
 
-@router.post("/batch/reanalyze")
-def reanalyze_all(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
+from fastapi import BackgroundTasks
+from ..database import SessionLocal
+
+def run_reanalyze_background(org_id: int, request_ip: str | None):
+    db = SessionLocal()
     try:
-        log_audit(db, current_user, "Bulk Reanalyze Customers", "/api/v1/predict/batch/reanalyze", request)
-        org_id = current_user.organization_id
-        
         # 1. Fetch all customers for this org
         customers = db.query(Customer).filter_by(organization_id=org_id).all()
         if not customers:
-            return {"status": "success", "message": "No customers to reanalyze."}
+            return
             
         # 2. Convert to DataFrame and map to ML feature names
         records = []
@@ -410,27 +406,25 @@ def reanalyze_all(
         df = pd.DataFrame.from_records(records)
         
         # 3. Predict using active model
-        # The sklearn pipeline uses make_column_selector(dtype_include=np.number)
-        # If we leave 'id' in, it will be scaled and cause a ValueError (feature count mismatch)
         customer_ids = df["id"].copy()
         
         predictor = get_predictor()
-        result_df = predictor.predict(df.drop(columns=["id"]))
+        features_df = df.drop(columns=["id"])
+        result_df = predictor.predict(features_df)
         result_df["id"] = customer_ids
         
-        # 3.5 Generate SHAP explanations ONLY for high risk (prob >= 0.6) to save time
-        from ml.models.explain import explain_batch
+        explanations_map = {}
+        high_risk_mask = result_df["churn_probability"] >= 0.6
+        if high_risk_mask.any():
+            high_risk_features = features_df[high_risk_mask].copy()
+            if len(high_risk_features) > 100:
+                high_risk_features = high_risk_features.sample(n=100, random_state=42)
+            high_risk_indices = high_risk_features.index
+            explanations = explain_batch(high_risk_features, top_n=5)
+            for orig_idx, exp in zip(high_risk_indices, explanations):
+                explanations_map[orig_idx] = exp
         
-        high_risk_indices = result_df[result_df["churn_probability"] >= 0.6].index
-        if len(high_risk_indices) > 0:
-            high_risk_raw = df.loc[high_risk_indices].drop(columns=["id"])
-            high_risk_explanations = explain_batch(high_risk_raw)
-            # Create mapping
-            explanations_map = {idx: exp for idx, exp in zip(high_risk_indices, high_risk_explanations)}
-        else:
-            explanations_map = {}
-        
-        # 4. Clear out old prediction history for these customers so dashboard counts are accurate
+        # 4. Clear out old prediction history
         subq = db.query(Customer.id).filter(Customer.organization_id == org_id).subquery()
         db.query(PredictionHistory).filter(PredictionHistory.customer_db_id.in_(subq)).delete(synchronize_session=False)
         
@@ -441,22 +435,54 @@ def reanalyze_all(
         for idx, row in result_df.iterrows():
             prob = float(row["churn_probability"])
             histories_to_add.append({
-                "customer_db_id": int(row["id"]), # We kept id from DB
+                "customer_db_id": int(row["id"]),
                 "model_id": 1,
                 "probability": prob,
                 "prediction": int(row["churn_prediction"]),
                 "risk_tier": _risk_tier(prob),
-                "top_factors": explanations_map.get(idx, {}).get("top_factors")
+                "top_factors": explanations_map.get(idx, {}).get("top_factors"),
+                "balance": float(row.get("avg_balance", 0.0))
             })
             
-        # 5. Bulk insert in chunks
+        # 6. Bulk insert in chunks
         chunk_size = 5000
         for i in range(0, len(histories_to_add), chunk_size):
             chunk = histories_to_add[i:i+chunk_size]
             db.execute(insert(PredictionHistory).values(chunk))
             
         db.commit()
-        return {"status": "success", "reanalyzed_count": len(histories_to_add)}
+
+        # Send WebSocket event
+        import asyncio
+        from .ws import manager
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(manager.broadcast_to_org(org_id, {"type": "reanalyze_complete", "count": len(histories_to_add)}))
+        except RuntimeError:
+            asyncio.run(manager.broadcast_to_org(org_id, {"type": "reanalyze_complete", "count": len(histories_to_add)}))
+
+    except Exception as e:
+        db.rollback()
+        import traceback
+        with open("error.log", "w") as f:
+            f.write(traceback.format_exc())
+        print(traceback.format_exc())
+    finally:
+        db.close()
+
+@router.post("/batch/reanalyze")
+def reanalyze_all(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    try:
+        org_id = 1
+        ip = request.client.host if request.client else None
+        
+        background_tasks.add_task(run_reanalyze_background, org_id, ip)
+        
+        return {"status": "success", "message": "Reanalysis started in background."}
         
     except Exception as e:
         import traceback

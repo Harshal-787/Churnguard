@@ -15,7 +15,7 @@ sys.path.append(str(ROOT))
 
 from ml.models.inference import ChurnPredictor
 
-DATA_PATH = ROOT / "data" / "raw" / "churnguard_customers.csv"
+DATA_PATH = ROOT / "data" / "raw" / "Churn_Modelling.csv"
 
 @lru_cache(maxsize=1)
 def _get_background_data():
@@ -50,7 +50,12 @@ def explain_batch(df_raw: pd.DataFrame, top_n: int = 5):
         explainer = shap.KernelExplainer(predict_fn, shap.sample(X_bg, 5))
         shap_values = explainer.shap_values(X_explain, nsamples=10, silent=True)
     
+    if isinstance(shap_values, list):
+        shap_values = shap_values[1] # positive class
+    
     probs = predict_fn(X_explain)
+    if probs.ndim == 2:
+        probs = probs[:, 1]
     
     results = []
     for i in range(len(X_explain)):

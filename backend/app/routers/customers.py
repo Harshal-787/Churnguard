@@ -18,11 +18,15 @@ def get_customers(
     org_id = current_user.organization_id
     
     from sqlalchemy import desc
+    from ..models import RoleEnum
+    
     base_query = (
         db.query(Customer, PredictionHistory.probability)
         .outerjoin(PredictionHistory, Customer.id == PredictionHistory.customer_db_id)
-        .filter(Customer.organization_id == org_id)
     )
+    
+    if current_user.role != RoleEnum.SUPER_ADMIN:
+        base_query = base_query.filter(Customer.organization_id == org_id)
     
     if query:
         base_query = base_query.filter(Customer.customer_id.ilike(f"%{query}%"))
@@ -67,8 +71,13 @@ def get_customer_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    org_id = current_user.organization_id
-    c = db.query(Customer).filter_by(organization_id=org_id, customer_id=customer_id).first()
+    from ..models import RoleEnum
+    if current_user.role == RoleEnum.SUPER_ADMIN:
+        c = db.query(Customer).filter_by(customer_id=customer_id).first()
+    else:
+        org_id = current_user.organization_id
+        c = db.query(Customer).filter_by(organization_id=org_id, customer_id=customer_id).first()
+        
     if not c:
         raise HTTPException(status_code=404, detail="Customer not found")
         

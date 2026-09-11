@@ -69,7 +69,18 @@ export function AppShell({ children }: ShellProps) {
       if (res.data) setNotifications(res.data)
     })
     
-    return () => window.removeEventListener('cg_stats_updated', fetchStats)
+    const down = (e: KeyboardEvent) => {
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setShowCommandPalette((open) => !open)
+      }
+    }
+    document.addEventListener('keydown', down)
+    
+    return () => {
+      window.removeEventListener('cg_stats_updated', fetchStats)
+      document.removeEventListener('keydown', down)
+    }
   }, [route])
   return <div className="min-h-screen bg-background text-foreground lg:flex">
     <aside className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-sidebar-border bg-sidebar py-6 transition-all duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-20 px-3' : 'w-72 px-5'}`}>

@@ -28,6 +28,12 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
   const [pushEnabled, setPushEnabled] = useState(false)
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [isAuditLoading, setIsAuditLoading] = useState(false)
+  const [require2FA, setRequire2FA] = useState(false)
+  const [sessionTimeout, setSessionTimeout] = useState('15 Minutes')
+  const [isSecurityLoading, setIsSecurityLoading] = useState(false)
+  const [apiKeys, setApiKeys] = useState<any[]>([])
+  const [newApiKey, setNewApiKey] = useState('')
+  const [isApiKeysLoading, setIsApiKeysLoading] = useState(false)
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -47,8 +53,87 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
       fetchModels()
     } else if (activeTab === 'audit') {
       fetchAuditLogs()
+    } else if (activeTab === 'security') {
+      fetchSecuritySettings()
+    } else if (activeTab === 'api') {
+      fetchApiKeys()
     }
   }, [activeTab])
+
+  const fetchSecuritySettings = async () => {
+    try {
+      setIsSecurityLoading(true)
+      const res = await api<any>('/organizations/me/settings')
+      if (res.status === 200 && res.data) {
+        setRequire2FA(res.data.require_2fa)
+        setSessionTimeout(res.data.session_timeout || '15 Minutes')
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsSecurityLoading(false)
+    }
+  }
+
+  const updateSecuritySettings = async (new2fa: boolean, newTimeout: string) => {
+    try {
+      setRequire2FA(new2fa)
+      setSessionTimeout(newTimeout)
+      await api('/organizations/me/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ require_2fa: new2fa, session_timeout: newTimeout })
+      })
+      setSavedMessage('Security settings saved!')
+      setTimeout(() => setSavedMessage(''), 2000)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleForceRotate = async () => {
+    try {
+      await api('/organizations/me/force_rotate_passwords', { method: 'POST' })
+      setSavedMessage('All passwords rotated successfully!')
+      setTimeout(() => setSavedMessage(''), 3000)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const fetchApiKeys = async () => {
+    try {
+      setIsApiKeysLoading(true)
+      const res = await api<any[]>('/organizations/me/api_keys')
+      if (res.status === 200 && Array.isArray(res.data)) {
+        setApiKeys(res.data)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setIsApiKeysLoading(false)
+    }
+  }
+
+  const handleGenerateApiKey = async () => {
+    try {
+      const name = prompt("Enter a name for the new API Key:")
+      if (!name) return
+      
+      const res = await api<any>('/organizations/me/api_keys', {
+        method: 'POST',
+        body: JSON.stringify({ name })
+      })
+      
+      if (res.status === 200 && res.data) {
+        setNewApiKey(res.data.key)
+        fetchApiKeys()
+        setSavedMessage('API Key generated successfully!')
+        setTimeout(() => setSavedMessage(''), 3000)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   const fetchAuditLogs = async () => {
     try {
@@ -440,39 +525,53 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
               {activeTab === 'security' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
                   <div className="border-b border-border/50 pb-4">
-                    <h3 className="text-xl font-semibold tracking-tight">Security & Access Policies</h3>
-                    <p className="text-sm text-muted-foreground mt-1">Organization-wide security settings for administrators.</p>
+                     <h3 className="text-xl font-semibold tracking-tight">Security & Access Policies</h3>
+                     <p className="text-sm text-muted-foreground mt-1">Organization-wide security settings for administrators.</p>
                   </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/50 p-5 shadow-sm transition-colors hover:bg-muted/20">
-                      <div>
-                        <p className="font-medium text-foreground">Require 2FA</p>
-                        <p className="text-sm text-muted-foreground mt-0.5">Force all organization members to use two-factor auth.</p>
+                  {isSecurityLoading ? (
+                    <div className="h-32 w-full animate-pulse rounded-xl bg-muted/50" />
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/50 p-5 shadow-sm transition-colors hover:bg-muted/20">
+                        <div>
+                          <p className="font-medium text-foreground">Require 2FA</p>
+                          <p className="text-sm text-muted-foreground mt-0.5">Force all organization members to use two-factor auth.</p>
+                        </div>
+                        <div className="relative flex items-center">
+                          <input 
+                            type="checkbox" 
+                            className="peer sr-only" 
+                            id="req-2fa" 
+                            checked={require2FA}
+                            onChange={(e) => updateSecuritySettings(e.target.checked, sessionTimeout)}
+                          />
+                          <label htmlFor="req-2fa" className="block h-6 w-11 cursor-pointer rounded-full bg-muted transition-colors peer-checked:bg-primary">
+                            <div className={`absolute left-0.5 top-0.5 size-5 rounded-full bg-white transition-transform ${require2FA ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </label>
+                        </div>
                       </div>
-                      <div className="relative flex items-center">
-                        <input type="checkbox" className="peer sr-only" id="req-2fa" />
-                        <label htmlFor="req-2fa" className="block h-6 w-11 cursor-pointer rounded-full bg-muted transition-colors peer-checked:bg-primary">
-                          <div className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
-                        </label>
+                      <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/50 p-5 shadow-sm transition-colors hover:bg-muted/20">
+                        <div>
+                          <p className="font-medium text-foreground">Session Timeout</p>
+                          <p className="text-sm text-muted-foreground mt-0.5">Automatically log users out after inactivity.</p>
+                        </div>
+                        <select 
+                          value={sessionTimeout}
+                          onChange={(e) => updateSecuritySettings(require2FA, e.target.value)}
+                          className="rounded-lg border border-input bg-background px-4 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:outline-none"
+                        >
+                          <option value="15 Minutes">15 Minutes</option>
+                          <option value="1 Hour">1 Hour</option>
+                          <option value="4 Hours">4 Hours</option>
+                          <option value="Never">Never</option>
+                        </select>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/50 p-5 shadow-sm transition-colors hover:bg-muted/20">
-                      <div>
-                        <p className="font-medium text-foreground">Session Timeout</p>
-                        <p className="text-sm text-muted-foreground mt-0.5">Automatically log users out after inactivity.</p>
-                      </div>
-                      <select className="rounded-lg border border-input bg-background px-4 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary focus:outline-none">
-                        <option>15 Minutes</option>
-                        <option>1 Hour</option>
-                        <option>4 Hours</option>
-                        <option>Never</option>
-                      </select>
-                    </div>
-                  </div>
+                  )}
                   <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5">
                     <h4 className="text-sm font-semibold text-destructive mb-1">Danger Zone</h4>
                     <p className="text-sm text-muted-foreground mb-4">This action will force all users to reset their password on their next login.</p>
-                    <Button variant="destructive" className="rounded-lg shadow-sm">Force Rotate All Passwords</Button>
+                    <Button variant="destructive" onClick={handleForceRotate} className="rounded-lg shadow-sm">Force Rotate All Passwords</Button>
                   </div>
                 </div>
               )}
@@ -498,13 +597,99 @@ export function SettingsModal({ open, setOpen, role }: SettingsModalProps) {
               )}
               
               {activeTab === 'api' && (
-                <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-300">
-                  <div className="grid size-16 place-items-center rounded-full bg-muted mb-4">
-                    <Key className="size-8 text-muted-foreground" />
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-4">
+                    <div>
+                      <h3 className="text-xl font-semibold tracking-tight">API Keys</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Manage programmatic access to the ChurnGuard engine.</p>
+                    </div>
+                    <Button onClick={handleGenerateApiKey} className="rounded-xl shadow-sm">
+                      <Key className="mr-2 size-4" /> Generate New Key
+                    </Button>
                   </div>
-                  <h3 className="text-lg font-medium">API Keys</h3>
-                  <p className="text-sm text-muted-foreground max-w-sm mt-2">Generate and manage API keys for programmatic access to the ChurnGuard engine.</p>
-                  <Button className="mt-6 rounded-xl shadow-sm">Generate New Key</Button>
+                  
+                  {newApiKey && (
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-5 mb-6">
+                      <h4 className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-2">New API Key Generated</h4>
+                      <p className="text-sm text-muted-foreground mb-4">Please copy this key now. You will not be able to see it again.</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 rounded-lg bg-background px-4 py-3 text-sm font-mono border shadow-inner">
+                          {newApiKey}
+                        </code>
+                        <Button variant="outline" onClick={() => { navigator.clipboard.writeText(newApiKey); setSavedMessage('Copied!'); setTimeout(()=>setSavedMessage(''), 2000) }}>Copy</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isApiKeysLoading ? (
+                    <div className="h-32 w-full animate-pulse rounded-xl bg-muted/50" />
+                  ) : apiKeys.length > 0 ? (
+                    <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-muted/50 text-muted-foreground font-medium border-b border-border/50">
+                          <tr>
+                            <th className="px-4 py-3">Name</th>
+                            <th className="px-4 py-3">Key Preview</th>
+                            <th className="px-4 py-3">Created At</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50 bg-card/30">
+                          {apiKeys.map(k => (
+                            <tr key={k.id} className="hover:bg-muted/30">
+                              <td className="px-4 py-3 font-medium">{k.name}</td>
+                              <td className="px-4 py-3 font-mono text-muted-foreground">{k.preview}</td>
+                              <td className="px-4 py-3 text-muted-foreground">{new Date(k.created_at).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center border rounded-xl border-dashed">
+                      <Key className="size-8 text-muted-foreground mb-3 opacity-50" />
+                      <p className="text-sm font-medium text-foreground">No API Keys Found</p>
+                      <p className="text-xs text-muted-foreground mt-1">Generate an API key to get started.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'audit' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  <div className="border-b border-border/50 pb-4">
+                     <h3 className="text-xl font-semibold tracking-tight">Audit Logs</h3>
+                     <p className="text-sm text-muted-foreground mt-1">Review security events and administrator actions within your organization.</p>
+                  </div>
+                  {isAuditLoading ? (
+                    <div className="h-64 w-full animate-pulse rounded-xl bg-muted/50" />
+                  ) : (
+                    <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-muted/50 text-muted-foreground font-medium border-b border-border/50">
+                          <tr>
+                            <th className="px-4 py-3">Timestamp</th>
+                            <th className="px-4 py-3">User</th>
+                            <th className="px-4 py-3">Action</th>
+                            <th className="px-4 py-3">IP Address</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50 bg-card/30">
+                          {auditLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No audit logs found.</td>
+                            </tr>
+                          ) : auditLogs.map(log => (
+                            <tr key={log.id} className="hover:bg-muted/30">
+                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{new Date(log.timestamp).toLocaleString()}</td>
+                              <td className="px-4 py-3 font-medium">{log.user_email}</td>
+                              <td className="px-4 py-3">{log.action}</td>
+                              <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{log.ip_address || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 

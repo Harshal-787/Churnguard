@@ -12,8 +12,8 @@ from backend.app.models import User, Organization, Customer, PredictionHistory, 
 from ml.models.inference import ChurnPredictor
 
 def _risk_tier(p: float) -> str:
-    if p >= 0.6: return "high"
-    if p >= 0.3: return "medium"
+    if p >= 0.3: return "high"
+    if p >= 0.15: return "medium"
     return "low"
 
 def seed_customers():

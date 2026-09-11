@@ -32,6 +32,16 @@ class ChurnPredictor:
             raise FileNotFoundError(f"Model file not found: {model_path}")
         self.pipeline = joblib.load(model_path)
         
+        
+        # Load optimal threshold if available
+        self.optimal_threshold = 0.5
+        metadata_path = MODEL_DIR / f"metadata_{model_filename}.json"
+        if metadata_path.exists():
+            import json
+            with open(metadata_path, "r") as f:
+                meta = json.load(f)
+                self.optimal_threshold = meta.get("results", {}).get("optimal_threshold", 0.5)
+                
         if not hasattr(self.pipeline, "named_steps"):
             self.is_legacy = True
             try:
@@ -126,7 +136,10 @@ class ChurnPredictor:
                     raise e
             raise e
 
-    def predict(self, df_raw: pd.DataFrame, threshold: float = 0.5) -> pd.DataFrame:
+    def predict(self, df_raw: pd.DataFrame, threshold: float = None) -> pd.DataFrame:
+        if threshold is None:
+            threshold = getattr(self, "optimal_threshold", 0.5)
+            
         probs = self.predict_proba(df_raw)
         out = df_raw.copy()
         out["churn_probability"] = np.round(probs, 4)

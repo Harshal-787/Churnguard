@@ -44,7 +44,13 @@ export function State({ error, empty = 'No data available yet.', onRetry }: { er
   )
 }
 
-export function Metric({ label, value, note, icon: Icon }: any) { 
+export function Skeleton({ className = '' }: { className?: string }) {
+  return (
+    <div className={`animate-pulse rounded-md bg-muted ${className}`} />
+  )
+}
+
+export function Metric({ label, value, note, icon: Icon, isLoading }: any) { 
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between">
@@ -53,8 +59,20 @@ export function Metric({ label, value, note, icon: Icon }: any) {
           <Icon className="size-4" />
         </span>
       </div>
-      <p className="mt-5 font-mono text-3xl font-semibold tracking-tight">{value}</p>
-      {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
+      <div className="mt-5 h-9">
+        {isLoading ? (
+          <Skeleton className="h-full w-24" />
+        ) : (
+          <p className="font-mono text-3xl font-semibold tracking-tight">{value}</p>
+        )}
+      </div>
+      <div className="mt-2 h-4">
+        {isLoading ? (
+          <Skeleton className="h-full w-3/4" />
+        ) : note ? (
+          <p className="text-xs text-muted-foreground">{note}</p>
+        ) : null}
+      </div>
     </Card>
   )
 }

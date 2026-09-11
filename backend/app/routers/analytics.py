@@ -240,3 +240,45 @@ def export_analytics(
             media_type="text/csv", 
             headers={"Content-Disposition": "attachment; filename=churnguard_export.csv"}
         )
+
+@router.get("/drift")
+def get_data_drift(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # In a real enterprise system, we would calculate the Population Stability Index (PSI)
+    # by comparing the current production distribution against the training dataset distribution.
+    # For this dashboard, we return a simulated drift analysis.
+    
+    return {
+        "status": "warning",
+        "overall_psi": 0.18, # 0.1 to 0.2 indicates moderate drift
+        "last_updated": "2024-05-12T08:00:00Z",
+        "features": [
+            {
+                "name": "avg_balance",
+                "psi": 0.21,
+                "status": "drifted",
+                "message": "Distribution shifted towards lower balances."
+            },
+            {
+                "name": "monthly_transactions",
+                "psi": 0.05,
+                "status": "stable",
+                "message": "No significant change."
+            },
+            {
+                "name": "support_tickets_last_90d",
+                "psi": 0.15,
+                "status": "warning",
+                "message": "Slight increase in average tickets."
+            },
+            {
+                "name": "tenure_months",
+                "psi": 0.02,
+                "status": "stable",
+                "message": "Distribution matches training data."
+            }
+        ]
+    }
+

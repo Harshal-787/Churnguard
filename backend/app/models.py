@@ -15,11 +15,14 @@ class Organization(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
+    require_2fa = Column(Boolean, default=False)
+    session_timeout = Column(String, default="15 Minutes")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     users = relationship("User", back_populates="organization")
     customers = relationship("Customer", back_populates="organization")
     models = relationship("Model", back_populates="organization")
+    api_keys = relationship("ApiKey", back_populates="organization")
 
 class User(Base):
     __tablename__ = "users"
@@ -32,6 +35,8 @@ class User(Base):
     role = Column(Enum(RoleEnum), default=RoleEnum.VIEWER, nullable=False)
     organization_id = Column(Integer, ForeignKey("organizations.id"))
     profile_picture_url = Column(String, nullable=True)
+    two_factor_code = Column(String, nullable=True)
+    two_factor_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="users")
@@ -126,3 +131,16 @@ class Notification(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     user = relationship("User")
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"))
+    name = Column(String, nullable=False, default="Default Key")
+    key_hash = Column(String, nullable=False)
+    preview = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization", back_populates="api_keys")
+
