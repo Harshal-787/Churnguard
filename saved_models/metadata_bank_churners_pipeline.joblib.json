@@ -1,0 +1,1 @@
+{"best_model": "bank_churners_pipeline", "train_rows": "10000", "results": {"auc_roc": 0.821, "f1": 0.58, "precision": 0.65, "recall": 0.52}}

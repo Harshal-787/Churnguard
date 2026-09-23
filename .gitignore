@@ -4,8 +4,5 @@ __pycache__/
 *.pyc
 .DS_Store
 
-data/
-saved_models/
-*.joblib
 *.zip
 unzipped_frontend/

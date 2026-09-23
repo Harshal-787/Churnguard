@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT))
 
 from ml.features.build_features import FintechFeatureEngineer
+from ml.features.feature_store import ChurnFeatureRegistry
 # Inject the RatioFeatureEngineer alias into __main__ so that models trained in notebooks can be unpickled
 if not hasattr(__main__, 'RatioFeatureEngineer'):
     setattr(__main__, 'RatioFeatureEngineer', FintechFeatureEngineer)
@@ -104,7 +105,9 @@ class ChurnPredictor:
                         expected_features = cols
                         break
         
-        input_df = df_raw.copy()
+        
+        # 1. Standardize through Feature Store BEFORE pipeline expectation checks
+        input_df = ChurnFeatureRegistry.map_raw_to_features(df_raw)
         
         if expected_features is not None:
             import numpy as np
@@ -135,6 +138,62 @@ class ChurnPredictor:
                 except:
                     raise e
             raise e
+
+    def preprocess_for_explain(self, df_raw: pd.DataFrame) -> np.ndarray:
+        """Runs only the preprocessing steps to return a numeric array for TreeExplainer."""
+        if getattr(self, "is_legacy", False) and getattr(self, "feature_columns", None) is not None:
+            # Re-use legacy logic but return values
+            df = df_raw.copy()
+            if "Balance" in df.columns and "EstimatedSalary" in df.columns:
+                df["Balance_Salary_Ratio"] = df["Balance"] / (df["EstimatedSalary"] + 1e-6)
+            if "Tenure" in df.columns and "Age" in df.columns:
+                df["Tenure_Age_Ratio"] = df["Tenure"] / (df["Age"] + 1e-6)
+            if "CreditScore" in df.columns and "Age" in df.columns:
+                df["CreditScore_Age_Ratio"] = df["CreditScore"] / (df["Age"] + 1e-6)
+            if "Geography" in df.columns:
+                df["Geography_Germany"] = (df["Geography"] == "Germany").astype(int)
+                df["Geography_Spain"] = (df["Geography"] == "Spain").astype(int)
+            if "Gender" in df.columns:
+                df["Gender_Male"] = (df["Gender"] == "Male").astype(int)
+            for col in self.feature_columns:
+                if col not in df.columns:
+                    df[col] = 0.0
+            return df[self.feature_columns].values
+
+        expected_features = getattr(self.pipeline, "feature_names_in_", None)
+        if expected_features is None:
+            for step_name, step_obj in self.pipeline.named_steps.items():
+                if hasattr(step_obj, "feature_names_in_"):
+                    expected_features = step_obj.feature_names_in_
+                    break
+        if expected_features is None:
+            for step_name, step_obj in self.pipeline.named_steps.items():
+                if hasattr(step_obj, "transformers_"):
+                    cols = []
+                    for name, trans, columns in step_obj.transformers_:
+                        if isinstance(columns, (list, tuple, np.ndarray)):
+                            cols.extend([c for c in columns if isinstance(c, str)])
+                    if cols:
+                        expected_features = cols
+                        break
+
+        input_df = ChurnFeatureRegistry.map_raw_to_features(df_raw)
+        
+        if expected_features is not None:
+            import numpy as np
+            for feature in expected_features:
+                if feature not in input_df.columns:
+                    input_df[feature] = np.nan
+            input_df = input_df[list(expected_features)]
+        else:
+            if "id" in input_df.columns:
+                input_df = input_df.drop(columns=["id"])
+                
+        if hasattr(self.pipeline, "steps") and len(self.pipeline.steps) > 1:
+            preprocessor = self.pipeline[:-1]
+            return preprocessor.transform(input_df)
+            
+        return input_df.values
 
     def predict(self, df_raw: pd.DataFrame, threshold: float = None) -> pd.DataFrame:
         if threshold is None:

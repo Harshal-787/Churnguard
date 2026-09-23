@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { api, clearSession, currentUser } from '@/lib/api'
 import { CommandPalette } from './command-palette'
 import { SettingsModal } from './settings-modal'
+import { AiAssistant } from './ai-assistant'
 import { useEffect, useState } from 'react'
 import { Activity, BarChart3, Boxes, Database, Gauge, Home, LogOut, Menu, Search, Settings2, ShieldCheck, Users, X, ChevronLeft, ChevronRight, TrendingDown, Bell } from 'lucide-react'
 
@@ -113,16 +114,27 @@ export function AppShell({ children }: ShellProps) {
       </div>
       {!isCollapsed && <div className="mt-10 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</div>}
       <nav className={`mt-6 flex flex-col gap-1 ${isCollapsed ? 'items-center' : ''}`}>
-        {allowedLinks.map(({ path, label, icon: Icon }) => (
-          <Link key={path} href={path} onClick={() => setOpen(false)} title={isCollapsed ? label : undefined} className={`flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition ${isCollapsed ? 'justify-center px-0 w-10 h-10' : 'px-3'} ${route === path || (path === '/customers' && route.startsWith('/customers/')) ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground'}`}>
-            <Icon className="size-5 shrink-0" />
-            {!isCollapsed && label}
-          </Link>
-        ))}
+        {allowedLinks.map(({ path, label, icon: Icon }) => {
+          const isActive = route === path || (path === '/customers' && route.startsWith('/customers/'));
+          return (
+            <Link 
+              key={path} 
+              href={path} 
+              onClick={() => setOpen(false)} 
+              title={isCollapsed ? label : undefined} 
+              className={`group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-300 ease-out overflow-hidden ${isCollapsed ? 'justify-center px-0 w-10 h-10' : 'px-3'} ${isActive ? 'text-primary-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-foreground'}`}
+            >
+              <div className={`absolute inset-0 transition-all duration-300 ease-out ${isActive ? 'bg-primary shadow-md opacity-100 scale-100' : 'bg-sidebar-accent opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100'}`}></div>
+              <Icon className={`size-5 shrink-0 relative z-10 transition-transform duration-300 ease-out group-hover:scale-110 ${isActive ? 'text-primary-foreground' : ''}`} />
+              {!isCollapsed && <span className="relative z-10">{label}</span>}
+            </Link>
+          );
+        })}
         {isAdmin && (
-          <Link href="/admin" onClick={() => setOpen(false)} title={isCollapsed ? 'Admin console' : undefined} className={`flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition ${isCollapsed ? 'justify-center px-0 w-10 h-10 mt-2' : 'px-3 mt-2'} ${route === '/admin' ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70'}`}>
-            <ShieldCheck className="size-5 shrink-0" />
-            {!isCollapsed && 'Admin console'}
+          <Link href="/admin" onClick={() => setOpen(false)} title={isCollapsed ? 'Admin console' : undefined} className={`group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium transition-all duration-300 ease-out overflow-hidden ${isCollapsed ? 'justify-center px-0 w-10 h-10 mt-2' : 'px-3 mt-2'} ${route === '/admin' ? 'text-primary-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-foreground'}`}>
+            <div className={`absolute inset-0 transition-all duration-300 ease-out ${route === '/admin' ? 'bg-primary shadow-md opacity-100 scale-100' : 'bg-sidebar-accent opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100'}`}></div>
+            <ShieldCheck className={`size-5 shrink-0 relative z-10 transition-transform duration-300 ease-out group-hover:scale-110 ${route === '/admin' ? 'text-primary-foreground' : ''}`} />
+            {!isCollapsed && <span className="relative z-10">Admin console</span>}
           </Link>
         )}
       </nav>
@@ -249,6 +261,8 @@ export function AppShell({ children }: ShellProps) {
     
     </div></header><main className="mx-auto max-w-[1600px] p-4 md:p-8">{children}</main></div>
     
+    <AiAssistant />
+
     <CommandPalette 
       open={showCommandPalette} 
       setOpen={setShowCommandPalette} 

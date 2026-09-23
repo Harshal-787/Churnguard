@@ -1,0 +1,1 @@
+{"best_model": "xgboost_classifier", "train_rows": "Unknown", "results": {"auc_roc": 0.785, "f1": 0.552, "precision": 0.62, "recall": 0.498}}

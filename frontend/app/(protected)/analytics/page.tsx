@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
   ]
   const shapData = listFrom<any>(data.shapFactors).sort((a,b) => b.value - a.value).slice(0, 5)
   const segmentData = listFrom<any>(data.segmentAverages)
-  const pieColors = ['#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981']
+  const pieColors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']
 
   return (
     <>
@@ -92,50 +92,153 @@ export default function AnalyticsPage() {
       </div>
 
       {activeTab === 'drift' ? (
-        <div className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-3">
-            <Card className="p-6 md:col-span-1">
-              <h2 className="font-semibold mb-2 flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Overall Drift Score</h2>
-              <p className="text-xs text-muted-foreground mb-4">Population Stability Index (PSI)</p>
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Overall Drift Score Card */}
+            <Card className="relative overflow-hidden p-6 lg:col-span-1 border-primary/20 bg-primary/5 flex flex-col justify-between min-h-[340px] premium-hover slide-up-fade animate-stagger-1">
+              <div className="absolute -right-12 -top-12 size-40 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
               
-              <div className="flex items-end gap-3 mt-8">
-                <span className="text-5xl font-bold font-mono tracking-tighter">
-                  {driftData?.overall_psi?.toFixed(2) || '---'}
-                </span>
-                <span className={`text-sm font-medium mb-1 px-2 py-1 rounded-md ${
-                  driftData?.overall_psi > 0.2 ? 'bg-destructive/10 text-destructive' :
-                  driftData?.overall_psi > 0.1 ? 'bg-yellow-500/10 text-yellow-500' :
-                  'bg-emerald-500/10 text-emerald-500'
-                }`}>
-                  {driftData?.overall_psi > 0.2 ? 'Significant Drift' :
-                   driftData?.overall_psi > 0.1 ? 'Moderate Drift' : 'Stable'}
-                </span>
+              <div>
+                <div className="relative z-10 flex items-start justify-between mb-8">
+                  <div>
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-[0.15em] mb-1.5">Model Monitoring</p>
+                    <h2 className="font-semibold text-lg flex items-center gap-2">Overall Drift Score</h2>
+                  </div>
+                  <div className="p-2.5 bg-background rounded-xl shadow-sm border border-border">
+                    <Activity className="size-5 text-primary" />
+                  </div>
+                </div>
+                
+                <div className="relative z-10">
+                  <p className="text-sm text-muted-foreground mb-2">Population Stability Index (PSI)</p>
+                  
+                  <div className="flex items-end gap-3 mb-6">
+                    <span className="text-6xl font-bold font-mono tracking-tighter text-foreground">
+                      {driftData?.overall_psi?.toFixed(2) || '---'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 mb-8 max-w-[80%]">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider">
+                      <span className="text-emerald-500">Stable</span>
+                      <span className="text-yellow-500">Moderate</span>
+                      <span className="text-destructive">Severe</span>
+                    </div>
+                    <div className="relative h-2 w-full rounded-full bg-muted overflow-hidden flex">
+                      <div className="h-full bg-emerald-500" style={{ width: '33.33%' }} />
+                      <div className="h-full bg-yellow-500" style={{ width: '33.33%' }} />
+                      <div className="h-full bg-destructive" style={{ width: '33.33%' }} />
+                      {/* Marker */}
+                      {driftData?.overall_psi !== undefined && (
+                         <div 
+                           className="absolute top-0 bottom-0 w-1 bg-foreground rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)] transition-all duration-1000" 
+                           style={{ left: `calc(${Math.min(98, (driftData.overall_psi / 0.3) * 100)}% - 2px)` }} 
+                         />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm font-semibold shadow-sm ${
+                    driftData?.overall_psi > 0.2 ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                    driftData?.overall_psi > 0.1 ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                    'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  }`}>
+                    <span className="relative flex h-2 w-2">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        driftData?.overall_psi > 0.2 ? 'bg-destructive' :
+                        driftData?.overall_psi > 0.1 ? 'bg-yellow-500' :
+                        'bg-emerald-500'
+                      }`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                        driftData?.overall_psi > 0.2 ? 'bg-destructive' :
+                        driftData?.overall_psi > 0.1 ? 'bg-yellow-500' :
+                        'bg-emerald-500'
+                      }`}></span>
+                    </span>
+                    {driftData?.overall_psi > 0.2 ? 'Significant Drift Detected' :
+                     driftData?.overall_psi > 0.1 ? 'Moderate Drift Detected' : 'Model is Stable'}
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-4">Last checked: {new Date(driftData?.last_updated).toLocaleString()}</p>
+              
+              <div className="relative z-10 mt-8 pt-4 border-t border-border/40 flex justify-between items-center text-xs text-muted-foreground">
+                <span className="font-medium">Last evaluated</span>
+                <span>{new Date(driftData?.last_updated).toLocaleString()}</span>
+              </div>
             </Card>
 
-            <Card className="p-6 md:col-span-2">
-               <h2 className="font-semibold mb-6">Feature Drift Breakdown</h2>
+            {/* Feature Drift Breakdown */}
+            <Card className="relative overflow-hidden lg:col-span-2 min-h-[340px] flex flex-col premium-hover slide-up-fade animate-stagger-2">
+              <div className="p-6 border-b border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20">
+                <div>
+                  <h2 className="font-semibold text-lg">Feature Drift Breakdown</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Detailed stability analysis across top model features</p>
+                </div>
+                <div className="flex gap-4 text-xs font-medium">
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" /> Stable (&lt; 0.1)</div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]" /> Warning (0.1 - 0.2)</div>
+                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.5)]" /> Drifted (&gt; 0.2)</div>
+                </div>
+              </div>
+              
+              <div className="p-6 flex-1 overflow-auto">
                {driftData?.features ? (
-                 <div className="space-y-4">
-                    {driftData.features.map((f: any) => (
-                      <div key={f.name} className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20">
-                        <div className="flex items-center gap-3">
-                          {f.status === 'stable' && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                          {f.status === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-500" />}
-                          {f.status === 'drifted' && <TrendingDown className="w-4 h-4 text-destructive" />}
-                          <div>
-                            <p className="text-sm font-medium">{f.name}</p>
-                            <p className="text-xs text-muted-foreground">{f.message}</p>
+                 <div className="grid gap-3">
+                    {driftData.features.map((f: any) => {
+                      const isStable = f.status === 'stable' || f.psi < 0.1;
+                      const isWarning = f.status === 'warning' || (f.psi >= 0.1 && f.psi <= 0.2);
+                      const isDrifted = f.status === 'drifted' || f.psi > 0.2;
+                      
+                      return (
+                        <div key={f.name} className={`relative flex items-center justify-between p-4 rounded-xl border transition-all hover:shadow-md ${
+                          isDrifted ? 'bg-destructive/5 border-destructive/30 hover:border-destructive/50' :
+                          isWarning ? 'bg-yellow-500/5 border-yellow-500/30 hover:border-yellow-500/50' :
+                          'bg-card border-border/50 hover:border-primary/30'
+                        }`}>
+                          
+                          <div className="flex items-center gap-4">
+                            <div className={`flex items-center justify-center size-10 rounded-full border shadow-sm ${
+                              isDrifted ? 'bg-background border-destructive/30' :
+                              isWarning ? 'bg-background border-yellow-500/30' :
+                              'bg-muted/50 border-border'
+                            }`}>
+                              {isStable && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                              {isWarning && <AlertTriangle className="w-5 h-5 text-yellow-500" />}
+                              {isDrifted && <TrendingDown className="w-5 h-5 text-destructive" />}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold font-mono tracking-tight">{f.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">{f.message}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-8 pl-4">
+                            <div className="flex flex-col items-end">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-1">PSI Score</span>
+                              <span className={`text-base font-bold font-mono ${
+                                isDrifted ? 'text-destructive' :
+                                isWarning ? 'text-yellow-500' :
+                                'text-foreground'
+                              }`}>
+                                {f.psi.toFixed(3)}
+                              </span>
+                            </div>
+                            
+                            {/* Visual PSI bar */}
+                            <div className="hidden sm:block w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div className={`h-full rounded-full transition-all duration-1000 ${
+                                isDrifted ? 'bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.8)]' :
+                                isWarning ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.8)]' :
+                                'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                              }`} style={{ width: `${Math.min(100, (f.psi / 0.3) * 100)}%` }} />
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                           <p className="text-sm font-mono font-bold">PSI: {f.psi.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                  </div>
-               ) : <State empty="Loading drift data..." />}
+               ) : <State empty="Loading advanced drift telemetry..." />}
+              </div>
             </Card>
           </div>
         </div>
@@ -145,14 +248,14 @@ export default function AnalyticsPage() {
           {/* FINANCIALS & SHAP */}
           <div className="grid gap-6 xl:grid-cols-3">
             
-            <Card className="p-6">
+            <Card className="p-6 premium-hover slide-up-fade animate-stagger-1">
               <h2 className="font-semibold mb-2">Revenue Impact</h2>
               <p className="text-xs text-muted-foreground mb-4">Total MRR broken down by current ML risk tier.</p>
               <div className="h-64 w-full">
                 {fin.safeRevenue > 0 || fin.revenueAtRisk > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={revData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
+                      <Pie data={revData} innerRadius={65} outerRadius={85} paddingAngle={5} dataKey="value" stroke="none">
                         <Cell fill="var(--primary)" />
                         <Cell fill="var(--destructive)" />
                       </Pie>
@@ -164,7 +267,7 @@ export default function AnalyticsPage() {
               </div>
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-6 premium-hover slide-up-fade animate-stagger-2">
               <h2 className="font-semibold mb-2">Global SHAP Drivers</h2>
               <p className="text-xs text-muted-foreground mb-4">Top factors causing risk across all high-risk accounts.</p>
               <div className="h-64 w-full">
@@ -182,7 +285,7 @@ export default function AnalyticsPage() {
               </div>
             </Card>
             
-            <Card className="p-6">
+            <Card className="p-6 premium-hover slide-up-fade animate-stagger-3">
               <h2 className="font-semibold mb-2">Segment Profile</h2>
               <p className="text-xs text-muted-foreground mb-4">Average trait comparison: Safe vs At Risk.</p>
               <div className="h-64 w-full">
@@ -205,7 +308,7 @@ export default function AnalyticsPage() {
           </div>
           
           {/* RISK HISTOGRAM */}
-          <Card className="p-6">
+          <Card className="p-6 premium-hover slide-up-fade animate-stagger-4">
             <h2 className="font-semibold mb-6">Risk Distribution Histogram</h2>
             <div className="h-72 w-full">
               {rh.length ? (
@@ -232,7 +335,7 @@ export default function AnalyticsPage() {
 
           <div className="grid gap-6 xl:grid-cols-2">
             {/* GEOGRAPHY BREAKDOWN */}
-            <Card className="p-6">
+            <Card className="p-6 premium-hover slide-up-fade animate-stagger-5">
               <h2 className="font-semibold mb-6">Geography Breakdown</h2>
               <div className="h-72 w-full">
                 {geo.length ? (
@@ -264,7 +367,7 @@ export default function AnalyticsPage() {
             </Card>
 
             {/* SALARY BANDS */}
-            <Card className="p-6">
+            <Card className="p-6 premium-hover slide-up-fade animate-stagger-6">
               <h2 className="font-semibold mb-6">Salary Band Risk</h2>
               <div className="h-72 w-full">
                 {salary.length ? (
@@ -297,7 +400,7 @@ export default function AnalyticsPage() {
 
             {/* RETENTION COHORTS */}
             {cohorts.length > 0 && (
-              <Card className="p-6 xl:col-span-2">
+              <Card className="p-6 xl:col-span-2 premium-hover slide-up-fade animate-stagger-1">
                 <h2 className="font-semibold mb-6">Retention Cohorts (%)</h2>
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">

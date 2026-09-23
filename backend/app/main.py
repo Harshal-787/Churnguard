@@ -26,7 +26,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 
-from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications, models, integrations, search, ws
+from app.routers import auth, predict, dashboard, customers, performance, analytics, organizations, notifications, models, integrations, search, ws, ai_chat
 from app.database import engine, Base
 
 # We rely on Alembic for migrations now, but we can ensure tables exist
@@ -46,7 +46,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Tighter CORS for production (example, can be configured via env)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8501"], # typical Next.js, Vite/React, and Streamlit ports
+    allow_origins=["*"], # Allow all origins for network access
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -56,6 +56,7 @@ app.mount("/static", StaticFiles(directory="uploads"), name="static")
 
 # API Version 1 Routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(ai_chat.router, prefix="/api/v1/chat", tags=["ai_chat"])
 app.include_router(predict.router, prefix="/api/v1/predict", tags=["predict"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(customers.router, prefix="/api/v1/customers", tags=["customers"])

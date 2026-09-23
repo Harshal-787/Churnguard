@@ -155,11 +155,11 @@ export default function RegisterPage() {
               <span className="text-foreground">Churn</span><span className="text-primary">Guard</span>
             </span>
           </div>
-          <p className="mb-3 text-sm font-semibold text-primary">Get Started</p>
-          <h2 className="text-3xl font-semibold tracking-tight">Create your workspace</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">Set up your account to start monitoring retention.</p>
+          <p className="mb-3 text-sm font-semibold text-primary slide-up-fade">Get Started</p>
+          <h2 className="text-3xl font-semibold tracking-tight slide-up-fade animate-stagger-1">Create your workspace</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground slide-up-fade animate-stagger-2">Set up your account to start monitoring retention.</p>
           
-          <form onSubmit={submit} className="mt-8 flex flex-col gap-4">
+          <form onSubmit={submit} className="mt-8 flex flex-col gap-4 slide-up-fade animate-stagger-3">
             <div className="flex flex-col items-center mb-2">
               <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
               <button 
@@ -203,11 +203,11 @@ export default function RegisterPage() {
             </label>
             {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
             
-            <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2">{busy ? 'Setting up…' : 'Create account'}<ArrowRight className="size-4 ml-1" /></Button>
+            <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2 premium-hover">{busy ? 'Setting up…' : 'Create account'}<ArrowRight className="size-4 ml-1" /></Button>
           </form>
           
-          <p className="mt-6 text-center text-sm text-muted-foreground">Already have an account? <Link href="/login" className="font-semibold text-primary hover:underline">Sign in</Link></p>
-          <div className="mt-12 flex items-center justify-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" />Your credentials stay protected</div>
+          <p className="mt-6 text-center text-sm text-muted-foreground slide-up-fade animate-stagger-4">Already have an account? <Link href="/login" className="font-semibold text-primary hover:underline">Sign in</Link></p>
+          <div className="mt-12 flex items-center justify-center gap-2 text-xs text-muted-foreground slide-up-fade animate-stagger-5"><LockKeyhole className="size-3.5" />Your credentials stay protected</div>
         </div>
       </div>
     </main>

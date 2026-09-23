@@ -24,25 +24,25 @@ function MiniBars({ values, forecast }: { values: number[], forecast?: number[] 
   }
 
   return (
-    <div className="h-40 w-full mt-auto pt-4">
+    <div className="flex-1 w-full mt-4 min-h-[250px]">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
           <defs>
             <linearGradient id="colorChurn" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.9}/>
-              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.2}/>
+              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0.05}/>
             </linearGradient>
           </defs>
-          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} dy={5} />
+          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} dy={10} />
           <Tooltip 
-            cursor={{ fill: 'rgba(0,0,0,0.05)' }} 
-            contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)' }} 
+            cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
+            contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} 
             itemStyle={{ color: 'var(--primary)', fontWeight: 600 }} 
-            labelStyle={{ color: 'var(--muted-foreground)', fontSize: '12px' }}
+            labelStyle={{ color: 'var(--muted-foreground)', fontSize: '13px', marginBottom: '4px' }}
           />
-          <Bar dataKey="churn" fill="url(#colorChurn)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+          <Bar dataKey="churn" fill="url(#colorChurn)" radius={[6, 6, 0, 0]} maxBarSize={48} isAnimationActive={false} />
           {forecast && forecast.length > 0 && (
-            <Line type="monotone" dataKey="forecast" stroke="var(--destructive)" strokeDasharray="4 4" strokeWidth={2} dot={{r:3}} activeDot={{r:5}} />
+            <Line type="monotone" dataKey="forecast" stroke="var(--destructive)" strokeDasharray="4 4" strokeWidth={2.5} dot={{r:4, fill: 'var(--background)', strokeWidth: 2}} activeDot={{r:6, strokeWidth: 0}} isAnimationActive={false} />
           )}
         </ComposedChart>
       </ResponsiveContainer>
@@ -160,8 +160,8 @@ export default function DashboardPage() {
   const firstName = user?.full_name?.split(' ')[0] || user?.name?.split(' ')[0] || 'User'
 
   // Component logic for Priority Queue
-  const PriorityQueueWidget = () => (
-    <Card className="p-6 flex h-full flex-col">
+  const renderPriorityQueueWidget = () => (
+    <Card className="p-6 flex h-full flex-col premium-hover slide-up-fade animate-stagger-3">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="font-semibold">Priority queue</h2>
@@ -170,13 +170,13 @@ export default function DashboardPage() {
         <ShieldAlert className="size-5 text-destructive" />
       </div>
       {!data ? (
-        <div className="flex flex-col gap-3 flex-1 overflow-hidden">
+        <div className="flex flex-col gap-3 h-[400px] overflow-hidden">
           {[1, 2, 3, 4, 5].map(i => (
-            <Skeleton key={i} className="h-[76px] w-full rounded-xl" />
+            <Skeleton key={i} className="h-[70px] w-full rounded-xl shrink-0" />
           ))}
         </div>
       ) : listFrom<RecordData>(data?.priority_customers).length ? (
-        <div className="flex flex-col gap-3 flex-1 overflow-auto max-h-[400px] pr-2">
+        <div className="flex flex-col gap-3 h-[400px] overflow-auto pr-2">
           {listFrom<RecordData>(data?.priority_customers).map((c,i)=> (
             <div key={i} className="flex items-center justify-between rounded-xl border border-border p-3 text-left hover:border-primary/50 hover:bg-primary/5 transition-all group">
               <Link href={`/customers/${c.id}`} className="flex flex-col gap-1 overflow-hidden flex-1">
@@ -233,8 +233,8 @@ export default function DashboardPage() {
   )
 
   // Component logic for Team
-  const OrgTeamWidget = () => (
-    <Card className="p-6 flex h-full flex-col">
+  const renderOrgTeamWidget = () => (
+    <Card className="p-6 flex h-full flex-col premium-hover slide-up-fade animate-stagger-4">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="font-semibold">Organization team</h2>
@@ -243,13 +243,13 @@ export default function DashboardPage() {
         <Users className="size-5 text-muted-foreground" />
       </div>
       {!data ? (
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3].map(i => (
-            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+        <div className="flex flex-col gap-3 h-[400px] overflow-hidden">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-[52px] w-full rounded-xl shrink-0" />
           ))}
         </div>
       ) : team.length ? (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 h-[400px] overflow-auto pr-2">
           {team.map((member: any) => (
             <div key={member.id} className="flex items-center gap-3 rounded-xl border border-border p-3">
               <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -272,8 +272,8 @@ export default function DashboardPage() {
   )
 
   // Component logic for Churn Movement Chart
-  const ChurnMovementWidget = () => (
-    <Card className="p-6 h-full">
+  const renderChurnMovementWidget = () => (
+    <Card className="p-6 h-full flex flex-col premium-hover slide-up-fade animate-stagger-2">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h2 className="font-semibold">Churn movement & forecast</h2>
@@ -282,7 +282,9 @@ export default function DashboardPage() {
         <BarChart3 className="size-5 text-muted-foreground" />
       </div>
       {!data ? (
-        <Skeleton className="h-40 w-full rounded-lg mt-auto" />
+        <div className="flex-1 w-full mt-4 min-h-[250px]">
+          <Skeleton className="h-full w-full rounded-xl" />
+        </div>
       ) : error ? (
         <State error={error} onRetry={load} /> 
       ) : trend.length ? (
@@ -294,8 +296,8 @@ export default function DashboardPage() {
   )
 
   // Component logic for Data Analyst quick tools
-  const DataOpsWidget = () => (
-    <Card className="p-6 flex h-full flex-col items-center justify-center text-center bg-primary/5 border-primary/10">
+  const renderDataOpsWidget = () => (
+    <Card className="p-6 flex h-full flex-col items-center justify-center text-center bg-primary/5 border-primary/10 premium-hover slide-up-fade animate-stagger-4">
       <Database className="size-8 text-primary mb-4" />
       <h2 className="font-semibold mb-2">Manage Data Pipelines</h2>
       <p className="text-sm text-muted-foreground mb-6">Upload new CSV datasets or monitor model ingestion.</p>
@@ -343,13 +345,13 @@ export default function DashboardPage() {
       {!isAnalyst && (
         <>
           <div className="grid gap-4 sm:grid-cols-3 mb-6">
-            <Metric isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
-            <Metric isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
-            <Metric isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-1" isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-2" isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-3" isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
           </div>
           <div className="grid gap-6 lg:grid-cols-2 items-stretch">
-            <PriorityQueueWidget />
-            <OrgTeamWidget />
+            {renderPriorityQueueWidget()}
+            {renderOrgTeamWidget()}
           </div>
         </>
       )}
@@ -362,15 +364,15 @@ export default function DashboardPage() {
       {isAnalyst && !isOrgAdmin && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-            <Metric isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
-            <Metric isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
-            <Metric isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
-            <Metric isLoading={!data} label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-1" isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-2" isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-3" isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-4" isLoading={!data} label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
           </div>
           <div className="grid gap-6 xl:grid-cols-[1fr_.7fr_.7fr] items-stretch">
-            <ChurnMovementWidget />
-            <PriorityQueueWidget />
-            <DataOpsWidget />
+            {renderChurnMovementWidget()}
+            {renderPriorityQueueWidget()}
+            {renderDataOpsWidget()}
           </div>
         </>
       )}
@@ -383,15 +385,15 @@ export default function DashboardPage() {
       {isOrgAdmin && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-            <Metric isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
-            <Metric isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
-            <Metric isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
-            <Metric isLoading={!data} label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-1" isLoading={!data} label="Customers monitored" value={displayValue(metrics?.total_customers)} note="From the connected data source" icon={Users} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-2" isLoading={!data} label="At high risk" value={displayValue(metrics?.high_risk_customers)} note="Prioritize immediate outreach" icon={ShieldAlert} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-3" isLoading={!data} label="Current churn rate" value={displayValue(metrics?.churn_rate, '%')} note="Based on returned model output" icon={TrendingDown} />
+            <Metric className="premium-hover slide-up-fade animate-stagger-4" isLoading={!data} label="Model confidence" value={displayValue(metrics?.model_confidence, '%')} note="Latest available score" icon={CheckCircle2} />
           </div>
           <div className="grid gap-6 xl:grid-cols-[1fr_.7fr_.7fr] items-stretch">
-            <ChurnMovementWidget />
-            <PriorityQueueWidget />
-            <OrgTeamWidget />
+            {renderChurnMovementWidget()}
+            {renderPriorityQueueWidget()}
+            {renderOrgTeamWidget()}
           </div>
         </>
       )}

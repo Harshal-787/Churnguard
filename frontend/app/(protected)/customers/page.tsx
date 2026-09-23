@@ -105,7 +105,7 @@ export default function CustomersPage() {
           </div>
         } 
       />
-      <Card>
+      <Card className="premium-hover slide-up-fade animate-stagger-1 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center md:justify-between">
           <div className="relative flex-1 md:max-w-sm">
             <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />

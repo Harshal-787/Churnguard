@@ -58,7 +58,7 @@ export default function PerformancePage() {
         {/* ENTERPRISE MLOPS METADATA */}
         {meta.currentModel && (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Card className="relative overflow-hidden p-5 flex flex-col justify-between border-primary/20 bg-primary/5">
+            <Card className="relative overflow-hidden p-5 flex flex-col justify-between border-primary/20 bg-primary/5 premium-hover slide-up-fade animate-stagger-1">
               <div className="absolute -right-6 -top-6 size-24 rounded-full bg-primary/10 blur-2xl" />
               <div className="relative z-10 flex items-start justify-between">
                 <div>
@@ -74,7 +74,7 @@ export default function PerformancePage() {
               </div>
             </Card>
             
-            <Card className="relative overflow-hidden p-5 flex flex-col justify-between opacity-90 grayscale-[0.2]">
+            <Card className="relative overflow-hidden p-5 flex flex-col justify-between opacity-90 grayscale-[0.2] premium-hover slide-up-fade animate-stagger-2">
               <div className="relative z-10 flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em] mb-1.5">Previous Model</p>
@@ -89,7 +89,7 @@ export default function PerformancePage() {
               </div>
             </Card>
 
-            <Card className="relative overflow-hidden p-5 flex flex-col justify-between border-green-500/20 bg-green-500/5">
+            <Card className="relative overflow-hidden p-5 flex flex-col justify-between border-green-500/20 bg-green-500/5 premium-hover slide-up-fade animate-stagger-3">
               <div className="absolute -right-6 -top-6 size-24 rounded-full bg-green-500/10 blur-2xl" />
               <div className="relative z-10 flex items-start justify-between">
                 <div>
@@ -110,7 +110,7 @@ export default function PerformancePage() {
               </div>
             </Card>
 
-            <Card className="relative overflow-hidden p-5 flex flex-col justify-between">
+            <Card className="relative overflow-hidden p-5 flex flex-col justify-between premium-hover slide-up-fade animate-stagger-4">
               <div className="relative z-10 flex items-start justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.15em] mb-1.5">API Inference</p>
@@ -129,15 +129,15 @@ export default function PerformancePage() {
 
         {/* TOP METRICS */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="AUC" value={m.auc ? (m.auc * 100).toFixed(1) + '%' : '0%'} note="Area Under ROC" icon={Target} />
-          <Metric label="F1 Score" value={m.f1 ? (m.f1 * 100).toFixed(1) + '%' : '0%'} note="Harmonic mean of P & R" icon={CheckCircle2} />
-          <Metric label="Precision" value={m.precision ? (m.precision * 100).toFixed(1) + '%' : '0%'} note="True positives ratio" icon={Gauge} />
-          <Metric label="Recall" value={m.recall ? (m.recall * 100).toFixed(1) + '%' : '0%'} note="Actual positives identified" icon={ShieldAlert} />
+          <Metric className="premium-hover slide-up-fade animate-stagger-1" label="AUC" value={m.auc ? (m.auc * 100).toFixed(1) + '%' : '0%'} note="Area Under ROC" icon={Target} />
+          <Metric className="premium-hover slide-up-fade animate-stagger-2" label="F1 Score" value={m.f1 ? (m.f1 * 100).toFixed(1) + '%' : '0%'} note="Harmonic mean of P & R" icon={CheckCircle2} />
+          <Metric className="premium-hover slide-up-fade animate-stagger-3" label="Precision" value={m.precision ? (m.precision * 100).toFixed(1) + '%' : '0%'} note="True positives ratio" icon={Gauge} />
+          <Metric className="premium-hover slide-up-fade animate-stagger-4" label="Recall" value={m.recall ? (m.recall * 100).toFixed(1) + '%' : '0%'} note="Actual positives identified" icon={ShieldAlert} />
         </div>
         
         <div className="grid gap-6 xl:grid-cols-2">
           {/* ROC CURVE */}
-          <Card className="p-6">
+          <Card className="p-6 premium-hover slide-up-fade animate-stagger-1">
             <h2 className="font-semibold mb-6">ROC Curve</h2>
             <div className="h-72 w-full">
               {data.rocCurve?.length ? (
@@ -157,7 +157,7 @@ export default function PerformancePage() {
           </Card>
 
           {/* PR CURVE */}
-          <Card className="p-6">
+          <Card className="p-6 premium-hover slide-up-fade animate-stagger-2">
             <h2 className="font-semibold mb-6">Precision-Recall Curve</h2>
             <div className="h-72 w-full">
               {data.prCurve?.length ? (
@@ -177,7 +177,7 @@ export default function PerformancePage() {
           </Card>
 
           {/* FEATURE IMPORTANCE */}
-          <Card className="p-6">
+          <Card className="p-6 premium-hover slide-up-fade animate-stagger-3">
             <h2 className="font-semibold mb-6">Top 10 Feature Importance</h2>
             <div className="h-72 w-full">
               {data.featureImportance?.length ? (
@@ -201,7 +201,7 @@ export default function PerformancePage() {
           </Card>
 
           {/* CONFUSION MATRIX */}
-          <Card className="p-6 flex flex-col">
+          <Card className="p-6 flex flex-col premium-hover slide-up-fade animate-stagger-4">
             <h2 className="font-semibold mb-6">Confusion Matrix</h2>
             <div className="flex-1 flex items-center justify-center">
               {cm.tp !== undefined ? (
@@ -236,7 +236,7 @@ export default function PerformancePage() {
           </Card>
 
           {/* RISK DISTRIBUTION PIE CHART */}
-          <Card className="p-6">
+          <Card className="p-6 premium-hover slide-up-fade animate-stagger-5">
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <h2 className="font-semibold">Risk Tier Distribution</h2>
@@ -260,10 +260,10 @@ export default function PerformancePage() {
                       stroke="none"
                     >
                       {data.riskDistribution.map((entry: any, index: number) => {
-                        let fillColor = '#3b82f6' // Safe - Blue
-                        if (entry.name === 'Critical') fillColor = '#ef4444' // Red
-                        if (entry.name === 'Monitor') fillColor = '#f59e0b' // Amber
-                        if (entry.name === 'Safe') fillColor = '#10b981' // Emerald
+                        let fillColor = 'var(--info)' // Safe - Blue
+                        if (entry.name === 'Critical') fillColor = 'var(--error)' // Red
+                        if (entry.name === 'Monitor') fillColor = 'var(--warning)' // Amber
+                        if (entry.name === 'Safe') fillColor = 'var(--success)' // Emerald
                         return <Cell key={`cell-${index}`} fill={fillColor} />
                       })}
                     </Pie>

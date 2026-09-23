@@ -1,0 +1,42 @@
+{
+  "best_model": "calibrated_voting_ensemble",
+  "features": [
+    "num__CreditScore",
+    "num__Age",
+    "num__Tenure",
+    "num__Balance",
+    "num__NumOfProducts",
+    "num__HasCrCard",
+    "num__IsActiveMember",
+    "num__EstimatedSalary",
+    "num__Balance_to_Salary_Ratio",
+    "num__Tenure_to_Age_Ratio",
+    "num__Credit_Utilization_Proxy",
+    "num__Engagement_Score",
+    "cat__Geography_France",
+    "cat__Geography_Germany",
+    "cat__Geography_Spain",
+    "cat__Gender_Female",
+    "cat__Gender_Male"
+  ],
+  "results": {
+    "auc_roc": 0.8673,
+    "precision": 0.6308,
+    "recall": 0.6339,
+    "f1": 0.6324,
+    "precision_at_top20pct": 0.6375,
+    "optimal_threshold": 0.3
+  },
+  "train_rows": 8000,
+  "test_rows": 2000,
+  "random_seed": 42,
+  "best_params": {
+    "n_estimators": 119,
+    "max_depth": 3,
+    "learning_rate": 0.06031007908587817,
+    "subsample": 0.8509790693799667,
+    "colsample_bytree": 0.7839209424547221,
+    "random_state": 42,
+    "eval_metric": "auc"
+  }
+}

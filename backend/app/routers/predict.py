@@ -324,27 +324,7 @@ def test_reanalyze(db: Session = Depends(get_db)):
         records = []
         for c in customers:
             d = c.__dict__.copy()
-            sal = 100000.0
-            band = d.get("salary_band")
-            if band == "low": sal = 40000.0
-            elif band == "mid": sal = 75000.0
-            elif band == "high": sal = 125000.0
-            elif band == "ultra-high": sal = 200000.0
-                
-            mapped = {
-                "id": d["id"],
-                "Geography": d.get("geography", "Unknown"),
-                "Age": d.get("age", 30),
-                "Tenure": d.get("tenure_months", 0),
-                "Balance": d.get("avg_balance", 0.0),
-                "NumOfProducts": d.get("num_products", 1),
-                "HasCrCard": d.get("has_credit_card", 0),
-                "IsActiveMember": d.get("is_active_member", 0),
-                "EstimatedSalary": sal,
-                "Gender": "Unknown",
-                "CreditScore": 650,
-            }
-            records.append(mapped)
+            records.append(d)
             
         df = pd.DataFrame.from_records(records)
         
@@ -380,28 +360,7 @@ def run_reanalyze_background(org_id: int, request_ip: str | None):
         for c in customers:
             d = c.__dict__.copy()
             
-            # Estimate salary back from band
-            sal = 100000.0
-            band = d.get("salary_band")
-            if band == "low": sal = 40000.0
-            elif band == "mid": sal = 75000.0
-            elif band == "high": sal = 125000.0
-            elif band == "ultra-high": sal = 200000.0
-                
-            mapped = {
-                "id": d["id"],
-                "Geography": d.get("geography", "Unknown"),
-                "Age": d.get("age", 30),
-                "Tenure": d.get("tenure_months", 0),
-                "Balance": d.get("avg_balance", 0.0),
-                "NumOfProducts": d.get("num_products", 1),
-                "HasCrCard": d.get("has_credit_card", 0),
-                "IsActiveMember": d.get("is_active_member", 0),
-                "EstimatedSalary": sal,
-                "Gender": "Unknown", # Not in DB, required by pipeline
-                "CreditScore": 650,  # Not in DB, required by pipeline
-            }
-            records.append(mapped)
+            records.append(d)
             
         df = pd.DataFrame.from_records(records)
         
@@ -440,8 +399,7 @@ def run_reanalyze_background(org_id: int, request_ip: str | None):
                 "probability": prob,
                 "prediction": int(row["churn_prediction"]),
                 "risk_tier": _risk_tier(prob),
-                "top_factors": explanations_map.get(idx, {}).get("top_factors"),
-                "balance": float(row.get("avg_balance", 0.0))
+                "top_factors": explanations_map.get(idx, {}).get("top_factors")
             })
             
         # 6. Bulk insert in chunks

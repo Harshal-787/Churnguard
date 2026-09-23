@@ -50,9 +50,9 @@ export function Skeleton({ className = '' }: { className?: string }) {
   )
 }
 
-export function Metric({ label, value, note, icon: Icon, isLoading }: any) { 
+export function Metric({ label, value, note, icon: Icon, isLoading, className = '' }: any) { 
   return (
-    <Card className="p-5">
+    <Card className={cn("p-5", className)}>
       <div className="flex items-start justify-between">
         <p className="text-sm text-muted-foreground">{label}</p>
         <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">

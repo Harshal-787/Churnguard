@@ -1,0 +1,89 @@
+Traceback (most recent call last):
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/app/routers/predict.py", line 410, in run_reanalyze_background
+    db.execute(insert(PredictionHistory).values(chunk))
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 2373, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/orm/session.py", line 2271, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self,
+        ^^^^^
+    ...<4 lines>...
+        conn,
+        ^^^^^
+    )
+    ^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/orm/bulk_persistence.py", line 1322, in orm_execute_statement
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/engine/base.py", line 1635, in _execute_clauseelement
+    compiled_sql, extracted_params, cache_hit = elem._compile_w_cache(
+                                                ~~~~~~~~~~~~~~~~~~~~~^
+        dialect=dialect,
+        ^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        linting=self.dialect.compiler_linting | compiler.WARN_LINTING,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/elements.py", line 728, in _compile_w_cache
+    compiled_sql = self._compiler(
+        dialect,
+    ...<4 lines>...
+        **kw,
+    )
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/elements.py", line 323, in _compiler
+    return dialect.statement_compiler(dialect, self, **kw)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/compiler.py", line 1462, in __init__
+    Compiled.__init__(self, dialect, statement, **kwargs)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/compiler.py", line 902, in __init__
+    self.string = self.process(self.statement, **compile_kwargs)
+                  ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/compiler.py", line 948, in process
+    return obj._compiler_dispatch(self, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/annotation.py", line 344, in _compiler_dispatch
+    return self.__element.__class__._compiler_dispatch(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, visitor, **kw
+        ^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/visitors.py", line 138, in _compiler_dispatch
+    return meth(self, **kw)  # type: ignore  # noqa: E501
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/compiler.py", line 5971, in visit_insert
+    crud_params_struct = crud._get_crud_params(
+        self,
+    ...<4 lines>...
+        **kw,
+    )
+  File "/home/aspl96/Downloads/ChurnGuard/churnguard/backend/.venv/lib/python3.14/site-packages/sqlalchemy/sql/crud.py", line 382, in _get_crud_params
+    raise exc.CompileError(
+    ...<2 lines>...
+    )
+sqlalchemy.exc.CompileError: Unconsumed column names: balance

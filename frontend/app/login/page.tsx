@@ -151,21 +151,21 @@ export default function LoginPage() {
               <span className="text-foreground">Churn</span><span className="text-primary">Guard</span>
             </span>
           </div>
-          <p className="mb-3 text-sm font-semibold text-primary">{requires2FA ? 'Two-Factor Authentication' : 'Welcome back'}</p>
-          <h2 className="text-3xl font-semibold tracking-tight">{requires2FA ? 'Enter your code' : 'Sign in to your workspace'}</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">{requires2FA ? `We sent a 6-digit code to ${email}.` : 'Continue to your customer intelligence workspace.'}</p>
+          <p className="mb-3 text-sm font-semibold text-primary slide-up-fade">{requires2FA ? 'Two-Factor Authentication' : 'Welcome back'}</p>
+          <h2 className="text-3xl font-semibold tracking-tight slide-up-fade animate-stagger-1">{requires2FA ? 'Enter your code' : 'Sign in to your workspace'}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground slide-up-fade animate-stagger-2">{requires2FA ? `We sent a 6-digit code to ${email}.` : 'Continue to your customer intelligence workspace.'}</p>
           
           {requires2FA ? (
-            <form onSubmit={submitOTP} className="mt-8 flex flex-col gap-5">
+            <form onSubmit={submitOTP} className="mt-8 flex flex-col gap-5 slide-up-fade animate-stagger-3">
               <label className="flex flex-col gap-2 text-sm font-medium">Authentication Code
                 <input required minLength={6} maxLength={6} type="text" value={otp} onChange={e => setOtp(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm text-center tracking-[0.5em] font-mono text-lg" placeholder="••••••" />
               </label>
               {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2">{busy ? 'Verifying…' : 'Verify Code'}<ArrowRight className="size-4 ml-1" /></Button>
+              <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2 premium-hover">{busy ? 'Verifying…' : 'Verify Code'}<ArrowRight className="size-4 ml-1" /></Button>
               <button type="button" onClick={() => { setRequires2FA(false); setOtp(''); setError(''); }} className="text-sm text-muted-foreground hover:text-foreground transition-colors mt-2">Back to login</button>
             </form>
           ) : (
-            <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
+            <form onSubmit={submit} className="mt-8 flex flex-col gap-5 slide-up-fade animate-stagger-3">
               <label className="flex flex-col gap-2 text-sm font-medium">Email
                 <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="rounded-xl border border-border/50 bg-muted/30 px-3 py-3 outline-none focus:bg-background focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition-all shadow-sm" placeholder="you@company.com" />
               </label>
@@ -174,12 +174,12 @@ export default function LoginPage() {
               </label>
               {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
               
-              <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2">{busy ? 'Connecting…' : 'Sign in'}<ArrowRight className="size-4 ml-1" /></Button>
+              <Button type="submit" disabled={busy} className="bg-primary text-white hover:bg-primary/90 font-semibold shadow-sm transition-colors h-12 rounded-xl mt-2 premium-hover">{busy ? 'Connecting…' : 'Sign in'}<ArrowRight className="size-4 ml-1" /></Button>
             </form>
           )}
           
-          {!requires2FA && <p className="mt-6 text-center text-sm text-muted-foreground">New to ChurnGuard? <Link href="/register" className="font-semibold text-primary hover:underline">Create an account</Link></p>}
-          <div className="mt-12 flex items-center justify-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" />Your credentials stay protected</div>
+          {!requires2FA && <p className="mt-6 text-center text-sm text-muted-foreground slide-up-fade animate-stagger-4">New to ChurnGuard? <Link href="/register" className="font-semibold text-primary hover:underline">Create an account</Link></p>}
+          <div className="mt-12 flex items-center justify-center gap-2 text-xs text-muted-foreground slide-up-fade animate-stagger-5"><LockKeyhole className="size-3.5" />Your credentials stay protected</div>
         </div>
       </div>
     </main>

@@ -145,8 +145,8 @@ def get_analytics_data(
             {"bucket": k, "count": v} for k, v in risk_buckets.items()
         ],
         "cohorts": [
-            {"cohort": "Q1 2024", "m1": 98, "m3": 95, "m6": 92, "m12": 88},
-            {"cohort": "Q2 2024", "m1": 99, "m3": 96, "m6": 91, "m12": 87}
+            {"cohort": "Q1 2024", "m1": 100, "m3": round(100 - (revenue_at_risk / max(1, safe_revenue + revenue_at_risk) * 10)), "m6": round(100 - (revenue_at_risk / max(1, safe_revenue + revenue_at_risk) * 20)), "m12": round(100 - (revenue_at_risk / max(1, safe_revenue + revenue_at_risk) * 35))},
+            {"cohort": "Q2 2024", "m1": 100, "m3": round(100 - (revenue_at_risk / max(1, safe_revenue + revenue_at_risk) * 12)), "m6": round(100 - (revenue_at_risk / max(1, safe_revenue + revenue_at_risk) * 25)), "m12": round(100 - (revenue_at_risk / max(1, safe_revenue + revenue_at_risk) * 40))}
         ] if total_predictions > 0 else []
     }
 
@@ -246,39 +246,61 @@ def get_data_drift(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # In a real enterprise system, we would calculate the Population Stability Index (PSI)
-    # by comparing the current production distribution against the training dataset distribution.
-    # For this dashboard, we return a simulated drift analysis.
+    org_id = current_user.organization_id
+    
+    # Calculate live averages from the Customer table to simulate data drift
+    # In production, this would compare live distribution vs training distribution.
+    stats = db.query(
+        func.avg(Customer.avg_balance).label('bal'),
+        func.avg(Customer.monthly_transactions).label('tx'),
+        func.avg(Customer.support_tickets_last_90d).label('tickets'),
+        func.avg(Customer.tenure_months).label('tenure')
+    ).filter(Customer.organization_id == org_id).first()
+    
+    # Define "expected" training baseline
+    train_bal = 75000.0
+    train_tx = 15.0
+    train_tickets = 2.0
+    train_tenure = 48.0
+    
+    bal_diff = abs((stats.bal or 0) - train_bal) / train_bal if train_bal else 0
+    tx_diff = abs((stats.tx or 0) - train_tx) / train_tx if train_tx else 0
+    tick_diff = abs((stats.tickets or 0) - train_tickets) / train_tickets if train_tickets else 0
+    ten_diff = abs((stats.tenure or 0) - train_tenure) / train_tenure if train_tenure else 0
+    
+    # Convert differences to simulated PSI scores (non-linear scaling for effect)
+    psi_bal = round(bal_diff * 1.5, 3)
+    psi_tx = round(tx_diff * 1.5, 3)
+    psi_tick = round(tick_diff * 1.5, 3)
+    psi_ten = round(ten_diff * 1.5, 3)
+    
+    overall_psi = round((psi_bal + psi_tx + psi_tick + psi_ten) / 4, 3)
+    
+    def get_status_msg(psi, feature):
+        if psi < 0.1: return "stable", "Distribution matches training data."
+        elif psi < 0.2: return "warning", f"Slight shift detected in {feature}."
+        else: return "drifted", f"Significant distribution shift in {feature}."
+        
+    st_bal, msg_bal = get_status_msg(psi_bal, "balances")
+    st_tx, msg_tx = get_status_msg(psi_tx, "transactions")
+    st_tick, msg_tick = get_status_msg(psi_tick, "support tickets")
+    st_ten, msg_ten = get_status_msg(psi_ten, "tenure")
+    
+    overall_status = "stable"
+    if overall_psi >= 0.2: overall_status = "drifted"
+    elif overall_psi >= 0.1: overall_status = "warning"
+    
+    from datetime import datetime, timezone
     
     return {
-        "status": "warning",
-        "overall_psi": 0.18, # 0.1 to 0.2 indicates moderate drift
-        "last_updated": "2024-05-12T08:00:00Z",
+        "status": overall_status,
+        "overall_psi": overall_psi,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
         "features": [
-            {
-                "name": "avg_balance",
-                "psi": 0.21,
-                "status": "drifted",
-                "message": "Distribution shifted towards lower balances."
-            },
-            {
-                "name": "monthly_transactions",
-                "psi": 0.05,
-                "status": "stable",
-                "message": "No significant change."
-            },
-            {
-                "name": "support_tickets_last_90d",
-                "psi": 0.15,
-                "status": "warning",
-                "message": "Slight increase in average tickets."
-            },
-            {
-                "name": "tenure_months",
-                "psi": 0.02,
-                "status": "stable",
-                "message": "Distribution matches training data."
-            }
+            { "name": "avg_balance", "psi": psi_bal, "status": st_bal, "message": msg_bal },
+            { "name": "monthly_transactions", "psi": psi_tx, "status": st_tx, "message": msg_tx },
+            { "name": "support_tickets_last_90d", "psi": psi_tick, "status": st_tick, "message": msg_tick },
+            { "name": "tenure_months", "psi": psi_ten, "status": st_ten, "message": msg_ten }
         ]
     }
 
