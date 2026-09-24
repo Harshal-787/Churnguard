@@ -47,7 +47,7 @@ class Customer(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     customer_id = Column(String, index=True, nullable=False) # External ID from dataset
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     
     # Customer Data fields (to be expanded in Phase 2 for real dataset)
     geography = Column(String)
@@ -93,13 +93,13 @@ class PredictionHistory(Base):
     customer_db_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
     model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
     
-    probability = Column(Float, nullable=False)
+    probability = Column(Float, nullable=False, index=True)
     prediction = Column(Integer, nullable=False)
-    risk_tier = Column(String, nullable=False)
+    risk_tier = Column(String, nullable=False, index=True)
     top_factors = Column(JSON, nullable=True) # SHAP values
     llm_strategy = Column(JSON, nullable=True)
     
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
     customer = relationship("Customer", back_populates="predictions")
     model = relationship("Model", back_populates="predictions")
